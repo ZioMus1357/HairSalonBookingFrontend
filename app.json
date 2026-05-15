@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "Maison Noir Booking",
+    "slug": "maison-noir-booking",
+    "version": "2.0.0",
+    "orientation": "portrait",
+    "scheme": "maisonnoir",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": ["expo-document-picker"]
+  }
+}
