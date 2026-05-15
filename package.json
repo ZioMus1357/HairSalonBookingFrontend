@@ -10,7 +10,7 @@
     "android": "expo start --android --port 8082",
     "ios": "expo start --ios --port 8082",
     "typecheck": "tsc --noEmit",
-    "build": "expo export --platform web --output-dir dist",
+    "build": "expo export --platform web --output-dir dist && node scripts/prepare-pages.js",
     "export:web": "expo export --platform web --output-dir dist"
   },
   "dependencies": {
