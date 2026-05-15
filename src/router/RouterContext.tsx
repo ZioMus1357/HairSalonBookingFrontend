@@ -10,17 +10,27 @@ type RouterValue = {
 };
 
 const RouterContext = createContext<RouterValue | null>(null);
+const basePath = (process.env.EXPO_PUBLIC_BASE_PATH ?? "").replace(/\/$/, "");
 
 function normalizePath(path: string) {
-  if (!path.startsWith("/")) {
-    return `/${path}`;
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  if (basePath && normalized.startsWith(basePath)) {
+    return normalized.slice(basePath.length) || "/";
   }
-  return path;
+  return normalized;
+}
+
+function toBrowserPath(path: string) {
+  const normalized = normalizePath(path);
+  return `${basePath}${normalized}`;
 }
 
 function currentPath() {
   if (Platform.OS === "web" && typeof window !== "undefined") {
-    return `${window.location.pathname}${window.location.search}`;
+    const pathname = basePath && window.location.pathname.startsWith(basePath)
+      ? window.location.pathname.slice(basePath.length) || "/"
+      : window.location.pathname;
+    return `${pathname}${window.location.search}`;
   }
   return "/";
 }
@@ -40,10 +50,11 @@ export function RouterProvider({ children }: { children: ReactNode }) {
   const go = useCallback((to: string, mode: "push" | "replace") => {
     const next = normalizePath(to);
     if (Platform.OS === "web" && typeof window !== "undefined") {
+      const browserPath = toBrowserPath(next);
       if (mode === "push") {
-        window.history.pushState({}, "", next);
+        window.history.pushState({}, "", browserPath);
       } else {
-        window.history.replaceState({}, "", next);
+        window.history.replaceState({}, "", browserPath);
       }
     }
     setPath(next);
