@@ -5,6 +5,7 @@ web-build/
 expo-*.log
 .env
 .env.local
+upload-assets/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

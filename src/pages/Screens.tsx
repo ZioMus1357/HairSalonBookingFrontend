@@ -74,7 +74,7 @@ export function ServicesPage() {
 
   return (
     <>
-      <PageHeader kicker="Public" title="Usługi salonu" subtitle="Lista usług pobierana bezpośrednio z /api/SalonServices, z filtrowaniem dostępności i sortowaniem." image={images.hairTwo} />
+      <PageHeader kicker="Usługi" title="Rytuały dopasowane do Twojego stylu" subtitle="Od precyzyjnego cięcia po koloryzację z połyskiem. Wybierz usługę, porównaj czas i cenę, a potem zarezerwuj termin u wybranego stylisty." image={images.hairTwo} />
       <View style={screenStyles.filters}>
         <SelectRail label="Sortowanie" value={sort} options={[{ label: "Polecane", value: "recommended" }, { label: "Cena rosnąco", value: "priceAsc" }, { label: "Cena malejąco", value: "priceDesc" }, { label: "Czas trwania", value: "duration" }]} onChange={setSort} />
         <Chip label="Tylko dostępne" active={availableOnly} onPress={() => setAvailableOnly((value) => !value)} />
@@ -178,7 +178,7 @@ export function GalleryPage() {
   const data = useAsyncData(() => galleryApi.all(), []);
   return (
     <>
-      <PageHeader kicker="Public" title="Galeria salonu" subtitle="Zdjęcia salonu pobierane z backendu, a obrazy z Blob Storage są prezentowane w estetycznej siatce." image={images.salon} />
+      <PageHeader kicker="Galeria" title="Efekty, detale i atmosfera Maison Noir" subtitle="Zobacz wybrane metamorfozy, tekstury włosów i wnętrze salonu. To krótki podgląd estetyki, z którą pracujemy każdego dnia." image={images.salon} />
       <StateView loading={data.loading} error={data.error} empty={false}>
         <GalleryGrid photos={data.data ?? []} />
       </StateView>
@@ -192,14 +192,14 @@ export function ContactPage() {
 
   return (
     <>
-      <PageHeader kicker="Kontakt" title="Spokojna przestrzeń w centrum miasta" subtitle="Godziny otwarcia, lokalizacja i kontakt do salonu." image={images.salon} />
+      <PageHeader kicker="Kontakt" title="Umów wizytę lub zapytaj o konsultację" subtitle="Jesteśmy w centrum Warszawy. Napisz, zadzwoń albo zarezerwuj wizytę online, a pomożemy dobrać usługę do Twoich włosów i planu dnia." image={images.salon} />
       <View style={screenStyles.contactLayout}>
         <View style={[screenStyles.contactCard, compact && screenStyles.contactFullWidth]}>
           <Card>
             <Text style={screenStyles.cardTitle}>Maison Noir Studio</Text>
-            <Text style={screenStyles.contactLine}>ul. Elegancka 18, Warszawa</Text>
+            <Text style={screenStyles.contactLine}>ul. Elegancka 18, 00-001 Warszawa</Text>
             <Text style={screenStyles.contactLine}>+48 123 123 123</Text>
-            <Text style={screenStyles.contactLine}>hello@maison-noir.example</Text>
+            <Text style={screenStyles.contactLine}>kontakt@maison-noir.pl</Text>
             <View style={screenStyles.contactDivider} />
             <Text style={screenStyles.muted}>Poniedziałek-Piątek 9:00-20:00</Text>
             <Text style={screenStyles.muted}>Sobota 9:00-16:00</Text>
@@ -207,7 +207,7 @@ export function ContactPage() {
         </View>
         <View style={[screenStyles.mapMock, compact && screenStyles.contactFullWidth]}>
           <Text style={screenStyles.mapTitle}>Warszawa Centrum</Text>
-          <Text style={screenStyles.mapText}>Cicha, jasna przestrzeń beauty blisko głównych linii komunikacyjnych.</Text>
+          <Text style={screenStyles.mapText}>Kameralny salon beauty z wygodnym dojazdem, strefą konsultacji i spokojną atmosferą stworzoną z myślą o pełnym relaksie.</Text>
         </View>
       </View>
     </>
@@ -505,7 +505,7 @@ function PreviewBlock({ title, children, onPress }: { title: string; children: R
 }
 
 function StatsStrip() {
-  return <View style={screenStyles.stats}>{["5 etapów rezerwacji", "SignalR notifications", "Azure Blob gallery"].map((item) => <Text key={item} style={screenStyles.stat}>{item}</Text>)}</View>;
+  return <View style={screenStyles.stats}>{["Rezerwacja online 24/7", "Przypomnienia o wizycie", "Portfolio metamorfoz"].map((item) => <Text key={item} style={screenStyles.stat}>{item}</Text>)}</View>;
 }
 
 function ServiceGrid({ services, loading, error, selectedId, onSelect, onBook }: { services: SalonService[]; loading?: boolean; error?: string; selectedId?: string; onSelect?: (id: string) => void; onBook?: (id: string) => void }) {
