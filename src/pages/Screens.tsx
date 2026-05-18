@@ -252,9 +252,22 @@ export function AuthCallbackPage() {
 
   useEffect(() => {
     auth.refresh()
-      .then((principal) => {
-        const role = principal?.user?.role;
-        showToast({ title: "Zalogowano", message: role ? `Rola: ${role}` : "Sesja Easy Auth została odczytana.", tone: "success" });
+      .then(async (principal) => {
+        if (!principal) {
+          showToast({ title: "Nie udało się odczytać sesji", message: "Zaloguj się ponownie przez Google albo GitHub.", tone: "error" });
+          navigate("/login");
+          return;
+        }
+
+        let role = principal.user?.role;
+        if (!principal.user) {
+          await auth.register(principal.name, principal.email);
+          role = "Customer";
+          showToast({ title: "Profil utworzony", message: "Konto klienta zostało połączone z logowaniem Easy Auth.", tone: "success" });
+        } else {
+          showToast({ title: "Zalogowano", message: `Rola: ${role}`, tone: "success" });
+        }
+
         navigate(role === "Admin" ? "/admin" : role === "Hairdresser" ? "/hairdresser/dashboard" : "/booking");
       })
       .catch((err) => showToast({ title: "Nie udało się odczytać sesji", message: getErrorMessage(err), tone: "error" }));
