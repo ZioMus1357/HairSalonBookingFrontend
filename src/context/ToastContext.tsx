@@ -53,8 +53,8 @@ export function useToast() {
 const styles = StyleSheet.create({
   wrap: {
     position: "absolute",
-    top: 18,
-    right: 18,
+    left: 18,
+    bottom: 18,
     gap: 10,
     zIndex: 50,
     width: 330,
