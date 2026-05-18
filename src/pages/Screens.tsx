@@ -89,7 +89,7 @@ export function HairdressersPage() {
   const data = useAsyncData(() => hairdressersApi.all(), []);
   return (
     <>
-      <PageHeader kicker="Public" title="Fryzjerzy" subtitle="Karty zespołu z profilem, zdjęciem i CTA do rezerwacji." image={images.stylist} />
+      <PageHeader kicker="Zespół" title="Fryzjerzy" subtitle="Poznaj stylistów Maison Noir, sprawdź ich specjalizacje i wybierz osobę, u której chcesz umówić wizytę." image={images.stylist} />
       <HairdresserGrid hairdressers={data.data ?? []} loading={data.loading} error={data.error} onProfile={(id) => navigate(`/hairdressers/${id}`)} onBook={(id) => navigate(`/booking?hairdresserId=${id}`)} />
     </>
   );
@@ -328,7 +328,7 @@ export function BookingPage() {
   });
 
   if (!auth.isAuthenticated) {
-    return <Gate title="Musisz się zalogować, aby zarezerwować wizytę" message="Rezerwacja wymaga profilu klienta. Zaloguj się albo użyj lokalnego podglądu roli Customer." />;
+    return <Gate title="Musisz się zalogować, aby zarezerwować wizytę" message="Rezerwacja wymaga profilu klienta połączonego z kontem Google albo GitHub." />;
   }
 
   const create = async () => {
@@ -348,7 +348,7 @@ export function BookingPage() {
 
   return (
     <>
-      <PageHeader kicker="Customer" title="Rezerwacja wizyty" subtitle="Wizard krok po kroku korzystający z usług, fryzjerów, dostępności i fasady tworzenia wizyty." image={images.hero} />
+      <PageHeader kicker="Rezerwacja" title="Umów wizytę" subtitle="Wybierz usługę, stylistę i dogodny termin. Po potwierdzeniu zapiszemy wizytę w Twoim profilu klienta." image={images.hero} />
       <View style={screenStyles.stepper}>{[1, 2, 3, 4, 5].map((n) => <Chip key={n} label={`Krok ${n}`} active={step === n} onPress={() => setStep(n)} />)}</View>
       {step === 1 ? <ServiceGrid services={(services.data ?? []).filter((item) => item.isAvailable)} loading={services.loading} error={services.error} selectedId={serviceId} onSelect={(id) => { setServiceId(id); setStep(2); }} /> : null}
       {step === 2 ? <HairdresserGrid hairdressers={(hairdressers.data ?? []).filter((item) => item.isActive)} loading={hairdressers.loading} error={hairdressers.error} selectedId={hairdresserId} onProfile={() => undefined} onBook={(id) => { setHairdresserId(id); setStep(3); }} /> : null}
@@ -390,7 +390,7 @@ export function ProfilePage() {
 
   return (
     <>
-      <PageHeader kicker={onboarding ? "Pierwsze logowanie" : "Customer"} title={onboarding ? "Uzupełnij dane do rezerwacji" : "Profil klienta"} subtitle={onboarding ? "Podaj dane kontaktowe, żebyśmy mogli potwierdzić wizytę i przypisać rezerwacje do Twojego profilu." : "Zarządzaj danymi kontaktowymi używanymi przy rezerwacjach i historii wizyt."} image={images.hairOne} />
+      <PageHeader kicker={onboarding ? "Pierwsze logowanie" : "Klient"} title={onboarding ? "Uzupełnij dane do rezerwacji" : "Profil klienta"} subtitle={onboarding ? "Podaj dane kontaktowe, żebyśmy mogli potwierdzić wizytę i przypisać rezerwacje do Twojego profilu." : "Zarządzaj danymi kontaktowymi używanymi przy rezerwacjach i historii wizyt."} image={images.hairOne} />
       <StateView loading={data.loading} error={data.error} empty={!data.data}>
         <Card>
           <CustomerForm form={form} setForm={setForm} />
@@ -405,7 +405,7 @@ export function HairdresserDashboardPage() {
   const appointments = useAsyncData(() => hairdressersApi.myAppointments(), []);
   return (
     <>
-      <PageHeader kicker="Hairdresser" title="Panel fryzjera" subtitle="Szybki podgląd wizyt i powiadomień o rezerwacjach." image={images.barber} />
+      <PageHeader kicker="Fryzjer" title="Panel fryzjera" subtitle="Najbliższe wizyty, powiadomienia i szybki podgląd pracy na dziś." image={images.barber} />
       <VisitsView title="Najbliższe wizyty" appointments={(appointments.data ?? []).slice(0, 5)} loading={appointments.loading} error={appointments.error} />
     </>
   );
@@ -421,7 +421,7 @@ export function HairdresserCustomersPage() {
   const { showToast } = useToast();
   return (
     <>
-      <PageHeader kicker="Hairdresser" title="Historia klientów" subtitle="Fryzjer może sprawdzić historię klienta, jeśli miał z nim wspólne wizyty." image={images.stylist} />
+      <PageHeader kicker="Fryzjer" title="Historia klientów" subtitle="Lista klientów oraz wizyt powiązanych z Twoim profilem fryzjera." image={images.stylist} />
       <StateView loading={customers.loading} error={customers.error} empty={(customers.data ?? []).length === 0}>
         <DataTable items={customers.data ?? []} columns={[{ title: "Klient", render: fullName }, { title: "Email", render: (item) => item.email }]} actions={(item) => <Button label="Historia" variant="ghost" onPress={() => hairdressersApi.customerHistory(item.id).then(() => showToast({ title: "Historia klienta pobrana", tone: "success" })).catch((err) => showToast({ title: "Brak dostępu do historii", message: getErrorMessage(err), tone: "error" }))} />} />
       </StateView>
@@ -441,7 +441,7 @@ export function AdminDashboardPage() {
   const { navigate } = useRouter();
   return (
     <>
-      <PageHeader kicker="Admin" title="Dashboard administratora" subtitle="Statystyki, ostatnie rezerwacje i szybkie akcje panelu zarządzania." image={images.salon} />
+      <PageHeader kicker="Panel" title="Centrum zarządzania" subtitle="Statystyki salonu, ostatnie rezerwacje i szybki dostęp do najważniejszych sekcji." image={images.salon} />
       <View style={screenStyles.grid}>
         <Metric title="Klienci" value={customers.data?.length ?? 0} icon={<UsersRound color={colors.gold} />} />
         <Metric title="Fryzjerzy" value={hairdressers.data?.length ?? 0} icon={<Scissors color={colors.gold} />} />
@@ -469,7 +469,7 @@ export function AdminUsersPage() {
   const [hairdresserId, setHairdresserId] = useState("");
   return (
     <>
-      <PageHeader kicker="Admin" title="Użytkownicy i role" subtitle="Lista AppUser oraz przypisywanie ról Customer/Hairdresser/Admin." image={images.hero} />
+      <PageHeader kicker="Admin" title="Użytkownicy i role" subtitle="Zarządzaj dostępem do aplikacji i przypisuj konta do klientów, fryzjerów lub administratorów." image={images.hero} />
       <StateView loading={data.loading} error={data.error} empty={(data.data ?? []).length === 0}>
         <DataTable items={data.data ?? []} columns={[{ title: "Użytkownik", render: (u) => u.displayName || u.id }, { title: "Email", render: (u) => u.email }, { title: "Rola", render: (u) => u.role }]} actions={(user) => <Button label="Ustaw" variant="ghost" onPress={() => adminApi.assignRole(user.id, role, customerId || undefined, hairdresserId || undefined).then(() => { showToast({ title: "Rola przypisana", tone: "success" }); data.refresh(); }).catch((err) => showToast({ title: "Nie przypisano roli", message: getErrorMessage(err), tone: "error" }))} />} />
       </StateView>
@@ -517,7 +517,7 @@ export function AdminGalleryPage() {
   };
   return (
     <>
-      <PageHeader kicker="Admin" title="Galeria salonu" subtitle="Upload zdjęć salonu do Blob Storage i usuwanie metadanych przez backend." image={images.salon} />
+      <PageHeader kicker="Admin" title="Galeria salonu" subtitle="Dodawaj zdjęcia salonu, porządkuj opisy i usuwaj materiały, które nie powinny być już widoczne w aplikacji." image={images.salon} />
       <Card><Field label="Podpis zdjęcia" value={caption} onChangeText={setCaption} /><Button label="Upload zdjęcia" icon={<Upload size={17} color={colors.ink} />} onPress={() => upload().catch((err) => showToast({ title: "Upload nieudany", message: getErrorMessage(err), tone: "error" }))} /></Card>
       <GalleryGrid photos={data.data ?? []} onDelete={(id) => galleryApi.remove(id).then(data.refresh)} />
     </>
@@ -534,7 +534,7 @@ export function ForbiddenPage() {
 
 function Gate({ title, message }: { title: string; message: string }) {
   const { navigate } = useRouter();
-  return <><PageHeader kicker="Protected route" title={title} subtitle={message} image={images.hero} /><Card><Button label="Przejdź do logowania" onPress={() => navigate("/login")} /></Card></>;
+  return <><PageHeader kicker="Dostęp" title={title} subtitle={message} image={images.hero} /><Card><Button label="Przejdź do logowania" onPress={() => navigate("/login")} /></Card></>;
 }
 
 function SectionTitle({ title, subtitle }: { title: string; subtitle: string }) {
@@ -573,7 +573,7 @@ function VisitsView({ title, appointments, loading, error, adminRefresh }: { tit
   const { showToast } = useToast();
   return (
     <>
-      <PageHeader kicker="Wizyty" title={title} subtitle="Karty wizyt pokazują status, termin, klienta, fryzjera i usługę." image={images.barber} />
+      <PageHeader kicker="Wizyty" title={title} subtitle="Przegląd terminów z usługą, stylistą, klientem i aktualnym statusem rezerwacji." image={images.barber} />
       <StateView loading={loading || services.loading || hairdressers.loading || customers.loading} error={error} empty={appointments.length === 0}>
         <DataTable items={appointments} columns={[
           { title: "Termin", render: (item) => toLocalDateTime(item.startAt) },
@@ -590,21 +590,21 @@ function VisitsView({ title, appointments, loading, error, adminRefresh }: { tit
 function CustomersCrud({ data }: { data: ReturnType<typeof useAsyncData<Customer[]>> }) {
   const { showToast } = useToast();
   const [form, setForm] = useState<CustomerRequest>({ firstName: "", lastName: "", phoneNumber: "", email: "", notes: "" });
-  return <><PageHeader kicker="Admin" title="CRUD klientów" subtitle="Tworzenie, edycja i usuwanie klientów zgodnie z CustomerRequest." image={images.hairOne} /><Card><CustomerForm form={form} setForm={setForm} /><Button label="Dodaj klienta" icon={<Plus size={17} color={colors.ink} />} onPress={() => customersApi.create(form).then(() => { showToast({ title: "Klient dodany", tone: "success" }); data.refresh(); })} /></Card><StateView loading={data.loading} error={data.error} empty={(data.data ?? []).length === 0}><DataTable items={data.data ?? []} columns={[{ title: "Klient", render: fullName }, { title: "Email", render: (x) => x.email }, { title: "Telefon", render: (x) => x.phoneNumber }]} actions={(item) => <Button label="Usuń" variant="ghost" onPress={() => confirmDelete(() => customersApi.remove(item.id).then(data.refresh))} />} /></StateView></>;
+  return <><PageHeader kicker="Admin" title="Klienci" subtitle="Dodawaj klientów, aktualizuj dane kontaktowe i utrzymuj porządek w bazie salonu." image={images.hairOne} /><Card><CustomerForm form={form} setForm={setForm} /><Button label="Dodaj klienta" icon={<Plus size={17} color={colors.ink} />} onPress={() => customersApi.create(form).then(() => { showToast({ title: "Klient dodany", tone: "success" }); data.refresh(); })} /></Card><StateView loading={data.loading} error={data.error} empty={(data.data ?? []).length === 0}><DataTable items={data.data ?? []} columns={[{ title: "Klient", render: fullName }, { title: "Email", render: (x) => x.email }, { title: "Telefon", render: (x) => x.phoneNumber }]} actions={(item) => <Button label="Usuń" variant="ghost" onPress={() => confirmDelete(() => customersApi.remove(item.id).then(data.refresh))} />} /></StateView></>;
 }
 
 function HairdressersCrud({ data }: { data: ReturnType<typeof useAsyncData<Hairdresser[]>> }) {
   const { showToast } = useToast();
   const [form, setForm] = useState<HairdresserRequest>({ firstName: "", lastName: "", specialization: "", isActive: true });
   const upload = async (id: string) => { const picked = await DocumentPicker.getDocumentAsync({ type: ["image/jpeg", "image/png", "image/webp"] }); if (!picked.canceled) { await hairdressersApi.uploadPhoto(id, picked.assets[0]); showToast({ title: "Zdjęcie fryzjera zapisane", tone: "success" }); data.refresh(); } };
-  return <><PageHeader kicker="Admin" title="CRUD fryzjerów" subtitle="Zarządzanie zespołem i upload zdjęć fryzjera." image={images.stylist} /><Card><Field label="Imię" value={form.firstName} onChangeText={(firstName) => setForm({ ...form, firstName })} /><Field label="Nazwisko" value={form.lastName} onChangeText={(lastName) => setForm({ ...form, lastName })} /><Field label="Specjalizacja" value={form.specialization} onChangeText={(specialization) => setForm({ ...form, specialization })} /><Chip label="Aktywny" active={form.isActive} onPress={() => setForm({ ...form, isActive: !form.isActive })} /><Button label="Dodaj fryzjera" icon={<Plus size={17} color={colors.ink} />} onPress={() => hairdressersApi.create(form).then(() => { showToast({ title: "Fryzjer dodany", tone: "success" }); data.refresh(); })} /></Card><StateView loading={data.loading} error={data.error} empty={(data.data ?? []).length === 0}><DataTable items={data.data ?? []} columns={[{ title: "Fryzjer", render: fullName }, { title: "Specjalizacja", render: (x) => x.specialization }, { title: "Status", render: (x) => x.isActive ? "Aktywny" : "Nieaktywny" }]} actions={(item) => <View style={screenStyles.actions}><Button label="Foto" variant="ghost" icon={<Upload size={15} color={colors.gold} />} onPress={() => upload(item.id)} /><Button label="Usuń" variant="ghost" onPress={() => confirmDelete(() => hairdressersApi.remove(item.id).then(data.refresh))} /></View>} /></StateView></>;
+  return <><PageHeader kicker="Admin" title="Zespół fryzjerów" subtitle="Zarządzaj profilami stylistów, ich specjalizacjami, aktywnością i zdjęciami profilowymi." image={images.stylist} /><Card><Field label="Imię" value={form.firstName} onChangeText={(firstName) => setForm({ ...form, firstName })} /><Field label="Nazwisko" value={form.lastName} onChangeText={(lastName) => setForm({ ...form, lastName })} /><Field label="Specjalizacja" value={form.specialization} onChangeText={(specialization) => setForm({ ...form, specialization })} /><Chip label="Aktywny" active={form.isActive} onPress={() => setForm({ ...form, isActive: !form.isActive })} /><Button label="Dodaj fryzjera" icon={<Plus size={17} color={colors.ink} />} onPress={() => hairdressersApi.create(form).then(() => { showToast({ title: "Fryzjer dodany", tone: "success" }); data.refresh(); })} /></Card><StateView loading={data.loading} error={data.error} empty={(data.data ?? []).length === 0}><DataTable items={data.data ?? []} columns={[{ title: "Fryzjer", render: fullName }, { title: "Specjalizacja", render: (x) => x.specialization }, { title: "Status", render: (x) => x.isActive ? "Aktywny" : "Nieaktywny" }]} actions={(item) => <View style={screenStyles.actions}><Button label="Foto" variant="ghost" icon={<Upload size={15} color={colors.gold} />} onPress={() => upload(item.id)} /><Button label="Usuń" variant="ghost" onPress={() => confirmDelete(() => hairdressersApi.remove(item.id).then(data.refresh))} /></View>} /></StateView></>;
 }
 
 function ServicesCrud({ data }: { data: ReturnType<typeof useAsyncData<SalonService[]>> }) {
   const { showToast } = useToast();
   const [form, setForm] = useState({ name: "", description: "", durationMinutes: "60", price: "150", isAvailable: true });
   const body = (): SalonServiceRequest => ({ name: form.name, description: form.description, durationMinutes: Number(form.durationMinutes), price: Number(form.price), isAvailable: form.isAvailable });
-  return <><PageHeader kicker="Admin" title="CRUD usług" subtitle="Nazwa, opis, czas trwania, cena i dostępność zgodne z backendem." image={images.hairTwo} /><Card><Field label="Nazwa" value={form.name} onChangeText={(name) => setForm({ ...form, name })} /><Field label="Opis" value={form.description} onChangeText={(description) => setForm({ ...form, description })} /><Field label="Czas min" value={form.durationMinutes} onChangeText={(durationMinutes) => setForm({ ...form, durationMinutes })} keyboardType="numeric" /><Field label="Cena" value={form.price} onChangeText={(price) => setForm({ ...form, price })} keyboardType="numeric" /><Chip label="Dostępna" active={form.isAvailable} onPress={() => setForm({ ...form, isAvailable: !form.isAvailable })} /><Button label="Dodaj usługę" onPress={() => servicesApi.create(body()).then(() => { showToast({ title: "Usługa dodana", tone: "success" }); data.refresh(); })} /></Card><StateView loading={data.loading} error={data.error} empty={(data.data ?? []).length === 0}><DataTable items={data.data ?? []} columns={[{ title: "Usługa", render: (x) => x.name }, { title: "Cena", render: (x) => money(x.price) }, { title: "Czas", render: (x) => `${x.durationMinutes} min` }, { title: "Status", render: (x) => x.isAvailable ? "Dostępna" : "Niedostępna" }]} actions={(item) => <Button label="Usuń" variant="ghost" onPress={() => confirmDelete(() => servicesApi.remove(item.id).then(data.refresh))} />} /></StateView></>;
+  return <><PageHeader kicker="Admin" title="Usługi salonu" subtitle="Dodawaj i aktualizuj ofertę, ceny, czas trwania oraz dostępność usług widocznych dla klientów." image={images.hairTwo} /><Card><Field label="Nazwa" value={form.name} onChangeText={(name) => setForm({ ...form, name })} /><Field label="Opis" value={form.description} onChangeText={(description) => setForm({ ...form, description })} /><Field label="Czas min" value={form.durationMinutes} onChangeText={(durationMinutes) => setForm({ ...form, durationMinutes })} keyboardType="numeric" /><Field label="Cena" value={form.price} onChangeText={(price) => setForm({ ...form, price })} keyboardType="numeric" /><Chip label="Dostępna" active={form.isAvailable} onPress={() => setForm({ ...form, isAvailable: !form.isAvailable })} /><Button label="Dodaj usługę" onPress={() => servicesApi.create(body()).then(() => { showToast({ title: "Usługa dodana", tone: "success" }); data.refresh(); })} /></Card><StateView loading={data.loading} error={data.error} empty={(data.data ?? []).length === 0}><DataTable items={data.data ?? []} columns={[{ title: "Usługa", render: (x) => x.name }, { title: "Cena", render: (x) => money(x.price) }, { title: "Czas", render: (x) => `${x.durationMinutes} min` }, { title: "Status", render: (x) => x.isAvailable ? "Dostępna" : "Niedostępna" }]} actions={(item) => <Button label="Usuń" variant="ghost" onPress={() => confirmDelete(() => servicesApi.remove(item.id).then(data.refresh))} />} /></StateView></>;
 }
 
 function CustomerForm({ form, setForm }: { form: CustomerRequest; setForm: (form: CustomerRequest) => void }) {

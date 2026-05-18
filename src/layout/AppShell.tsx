@@ -24,12 +24,13 @@ const publicNav: NavItem[] = [
 ];
 
 const dashboardNav: NavItem[] = [
-  { label: "Booking", path: "/booking", icon: <CalendarDays size={17} color={colors.gold} />, roles: ["Customer", "Hairdresser", "Admin"] },
+  { label: "Booking", path: "/booking", icon: <CalendarDays size={17} color={colors.gold} />, roles: ["Customer"] },
   { label: "Moje wizyty", path: "/my-visits", icon: <UserRound size={17} color={colors.gold} />, roles: ["Customer"] },
   { label: "Profil", path: "/profile", icon: <Settings size={17} color={colors.gold} />, roles: ["Customer"] },
-  { label: "Panel fryzjera", path: "/hairdresser/dashboard", icon: <Scissors size={17} color={colors.gold} />, roles: ["Hairdresser", "Admin"] },
-  { label: "Wizyty fryzjera", path: "/hairdresser/appointments", icon: <CalendarDays size={17} color={colors.gold} />, roles: ["Hairdresser", "Admin"] },
-  { label: "Klienci fryzjera", path: "/hairdresser/customers", icon: <UsersRound size={17} color={colors.gold} />, roles: ["Hairdresser", "Admin"] },
+  { label: "Panel fryzjera", path: "/hairdresser/dashboard", icon: <Scissors size={17} color={colors.gold} />, roles: ["Hairdresser"] },
+  { label: "Wizyty fryzjera", path: "/hairdresser/appointments", icon: <CalendarDays size={17} color={colors.gold} />, roles: ["Hairdresser"] },
+  { label: "Klienci fryzjera", path: "/hairdresser/customers", icon: <UsersRound size={17} color={colors.gold} />, roles: ["Hairdresser"] },
+  { label: "Profil fryzjera", path: "/hairdresser/profile", icon: <Settings size={17} color={colors.gold} />, roles: ["Hairdresser"] },
   { label: "Admin", path: "/admin", icon: <Grid2X2 size={17} color={colors.gold} />, roles: ["Admin"] },
   { label: "Użytkownicy", path: "/admin/users", icon: <Lock size={17} color={colors.gold} />, roles: ["Admin"] },
   { label: "Klienci", path: "/admin/customers", icon: <UsersRound size={17} color={colors.gold} />, roles: ["Admin"] },
@@ -38,6 +39,13 @@ const dashboardNav: NavItem[] = [
   { label: "Wizyty", path: "/admin/appointments", icon: <CalendarDays size={17} color={colors.gold} />, roles: ["Admin"] },
   { label: "Galeria admin", path: "/admin/gallery", icon: <ImageIcon size={17} color={colors.gold} />, roles: ["Admin"] }
 ];
+
+const roleLabels: Record<UserRole | "Guest", string> = {
+  Customer: "Klient",
+  Hairdresser: "Fryzjer",
+  Admin: "Admin",
+  Guest: "Gość"
+};
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { width } = useWindowDimensions();
@@ -100,7 +108,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Pressable>
           ) : null}
           <Pressable onPress={() => navigate("/")} style={styles.mobileBrand}>
-            <Text style={styles.mobileBrandText}>Maison Noir</Text>
+            <Text numberOfLines={1} style={styles.mobileBrandText}>Maison Noir</Text>
           </Pressable>
           {isDesktop && !inDashboard ? (
             <View style={styles.desktopLinks}>
@@ -118,7 +126,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <Bell color={colors.ink} size={18} />
                   {toasts.length ? <View style={styles.dot} /> : null}
                 </Pressable>
-                <Chip label={auth.role} active />
+                <Chip label={roleLabels[auth.role]} active />
                 <Pressable onPress={auth.logout}><Text style={styles.link}>Wyloguj</Text></Pressable>
               </>
             ) : (
@@ -180,7 +188,8 @@ const styles = StyleSheet.create({
     borderColor: colors.line
   },
   mobileBrand: {
-    flexShrink: 0
+    flexShrink: 1,
+    minWidth: 0
   },
   mobileBrandText: {
     color: colors.ink,
@@ -193,7 +202,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     flexWrap: "nowrap",
-    justifyContent: "flex-end"
+    justifyContent: "flex-end",
+    marginLeft: "auto",
+    flexShrink: 0
   },
   desktopLinks: {
     flex: 1,
