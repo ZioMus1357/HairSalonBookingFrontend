@@ -49,6 +49,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const isHairdresserAppPath = path.startsWith("/hairdresser/");
   const inDashboard = path.startsWith("/admin") || isHairdresserAppPath || (auth.isAuthenticated && ["/booking", "/my-visits", "/profile"].includes(path));
+  const showMenuButton = !isDesktop || !inDashboard;
+  const showDrawer = open && showMenuButton;
   const items = useMemo(() => {
     if (!inDashboard) return publicNav;
     return dashboardNav.filter((item) => !item.roles || item.roles.includes(auth.role));
@@ -57,6 +59,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     setOpen(false);
   }, [path]);
+
+  useEffect(() => {
+    if (!showMenuButton) {
+      setOpen(false);
+    }
+  }, [showMenuButton]);
 
   const nav = (
     <View style={[styles.navPanel, inDashboard && styles.dashboardNav, !inDashboard && styles.publicDrawerPanel]}>
@@ -86,9 +94,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       {isDesktop && inDashboard ? nav : null}
       <View style={styles.main}>
         <View style={styles.topbar}>
-          <Pressable style={styles.menuButton} onPress={() => setOpen((value) => !value)}>
-            {open ? <X color={colors.ink} size={21} /> : <Menu color={colors.ink} size={21} />}
-          </Pressable>
+          {showMenuButton ? (
+            <Pressable style={styles.menuButton} onPress={() => setOpen((value) => !value)}>
+              {open ? <X color={colors.ink} size={21} /> : <Menu color={colors.ink} size={21} />}
+            </Pressable>
+          ) : null}
           <Pressable onPress={() => navigate("/")} style={styles.mobileBrand}>
             <Text style={styles.mobileBrandText}>Maison Noir</Text>
           </Pressable>
@@ -118,7 +128,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             )}
           </View>
         </View>
-        {open ? <View style={styles.mobileNav}>{nav}</View> : null}
+        {showDrawer ? <View style={styles.mobileNav}>{nav}</View> : null}
         <ScrollView contentContainerStyle={styles.content}>{children}</ScrollView>
         {!isDesktop && inDashboard ? (
           <View style={styles.bottomNav}>
