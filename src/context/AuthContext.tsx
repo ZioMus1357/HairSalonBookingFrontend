@@ -139,7 +139,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPrincipal(null);
     setPreview(null);
     if (Platform.OS === "web" && typeof window !== "undefined") {
-      const redirect = encodeURIComponent(frontendUrl("/"));
+      window.sessionStorage.setItem("maisonNoirLogoutPending", "1");
+      const redirect = encodeURIComponent(frontendUrl("/auth/callback"));
       window.location.href = `${AUTH_BASE_URL}/.auth/logout?post_logout_redirect_uri=${redirect}`;
     }
   }, []);

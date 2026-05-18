@@ -251,6 +251,13 @@ export function AuthCallbackPage() {
   const { showToast } = useToast();
 
   useEffect(() => {
+    if (typeof window !== "undefined" && window.sessionStorage.getItem("maisonNoirLogoutPending")) {
+      window.sessionStorage.removeItem("maisonNoirLogoutPending");
+      showToast({ title: "Wylogowano", message: "Sesja Easy Auth została zakończona.", tone: "success" });
+      navigate("/");
+      return;
+    }
+
     auth.refresh()
       .then(async (principal) => {
         if (!principal) {
@@ -264,6 +271,8 @@ export function AuthCallbackPage() {
           await auth.register(principal.name, principal.email);
           role = "Customer";
           showToast({ title: "Profil utworzony", message: "Konto klienta zostało połączone z logowaniem Easy Auth.", tone: "success" });
+          navigate("/profile?onboarding=1");
+          return;
         } else {
           showToast({ title: "Zalogowano", message: `Rola: ${role}`, tone: "success" });
         }
@@ -357,16 +366,35 @@ export function MyVisitsPage() {
 
 export function ProfilePage() {
   const { showToast } = useToast();
+  const { query, navigate } = useRouter();
+  const onboarding = query.get("onboarding") === "1";
   const data = useAsyncData(() => customersApi.me(), []);
   const [form, setForm] = useState<CustomerRequest>({ firstName: "", lastName: "", phoneNumber: "", email: "", notes: "" });
   useMemo(() => { if (data.data) setForm({ firstName: data.data.firstName, lastName: data.data.lastName, phoneNumber: data.data.phoneNumber, email: data.data.email, notes: data.data.notes ?? "" }); }, [data.data]);
+  const save = () => {
+    if (!form.firstName.trim() || !form.lastName.trim() || !form.email.trim() || !form.phoneNumber.trim()) {
+      showToast({ title: "Uzupełnij dane", message: "Imię, nazwisko, email i telefon są wymagane do rezerwacji.", tone: "error" });
+      return;
+    }
+
+    customersApi.updateMe(form)
+      .then(() => {
+        showToast({ title: "Profil zapisany", tone: "success" });
+        data.refresh();
+        if (onboarding) {
+          navigate("/booking");
+        }
+      })
+      .catch((err) => showToast({ title: "Nie zapisano profilu", message: getErrorMessage(err), tone: "error" }));
+  };
+
   return (
     <>
-      <PageHeader kicker="Customer" title="Profil klienta" subtitle="Dane pobierane i zapisywane przez /api/Customers/me." image={images.hairOne} />
+      <PageHeader kicker={onboarding ? "Pierwsze logowanie" : "Customer"} title={onboarding ? "Uzupełnij dane do rezerwacji" : "Profil klienta"} subtitle={onboarding ? "Podaj dane kontaktowe, żebyśmy mogli potwierdzić wizytę i przypisać rezerwacje do Twojego profilu." : "Zarządzaj danymi kontaktowymi używanymi przy rezerwacjach i historii wizyt."} image={images.hairOne} />
       <StateView loading={data.loading} error={data.error} empty={!data.data}>
         <Card>
           <CustomerForm form={form} setForm={setForm} />
-          <Button label="Zapisz profil" icon={<Edit3 size={17} color={colors.ink} />} onPress={() => customersApi.updateMe(form).then(() => { showToast({ title: "Profil zapisany", tone: "success" }); data.refresh(); }).catch((err) => showToast({ title: "Nie zapisano profilu", message: getErrorMessage(err), tone: "error" }))} />
+          <Button label={onboarding ? "Zapisz i przejdź do rezerwacji" : "Zapisz profil"} icon={<Edit3 size={17} color={colors.ink} />} onPress={save} />
         </Card>
       </StateView>
     </>
