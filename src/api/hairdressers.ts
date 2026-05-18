@@ -11,9 +11,9 @@ export const hairdressersApi = {
   availability: (id: string, day: string) => request<string[]>(`/api/Hairdressers/${id}/availability/${day}`),
   myAppointments: () => request<Appointment[]>("/api/Hairdressers/me/appointments"),
   customerHistory: (customerId: string) => request<HairdresserCustomerHistory>(`/api/Hairdressers/me/customers/${customerId}/history`),
-  uploadPhoto: (id: string, asset: DocumentPicker.DocumentPickerAsset) => {
+  uploadPhoto: async (id: string, asset: DocumentPicker.DocumentPickerAsset) => {
     const form = new FormData();
-    appendFile(form, "file", asset);
+    await appendFile(form, "file", asset);
     return request<Hairdresser>(`/api/Hairdressers/${id}/photo`, { method: "POST", body: form });
   }
 };

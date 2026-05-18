@@ -5,9 +5,9 @@ import { SalonPhoto } from "../types/domain";
 export const galleryApi = {
   all: () => request<SalonPhoto[]>("/api/SalonPhotos"),
   byId: (id: string) => request<SalonPhoto>(`/api/SalonPhotos/${id}`),
-  upload: (asset: DocumentPicker.DocumentPickerAsset, caption?: string) => {
+  upload: async (asset: DocumentPicker.DocumentPickerAsset, caption?: string) => {
     const form = new FormData();
-    appendFile(form, "file", asset);
+    await appendFile(form, "file", asset);
     if (caption) {
       form.append("caption", caption);
     }

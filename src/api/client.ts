@@ -1,3 +1,5 @@
+import { Platform } from "react-native";
+
 export const CLOUD_BACKEND_URL = "https://booking-api-fdgxg9cbc6chbqc8.francecentral-01.azurewebsites.net";
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? CLOUD_BACKEND_URL;
 export const AUTH_BASE_URL = process.env.EXPO_PUBLIC_AUTH_BASE_URL ?? API_BASE_URL;
@@ -54,10 +56,32 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 
 export const asJson = (value: unknown) => JSON.stringify(value);
 
-export function appendFile(form: FormData, name: string, asset: { uri: string; name?: string; mimeType?: string | null }) {
+type UploadAsset = {
+  uri: string;
+  name?: string;
+  mimeType?: string | null;
+  file?: Blob;
+};
+
+export async function appendFile(form: FormData, name: string, asset: UploadAsset) {
+  const fileName = asset.name ?? "photo.jpg";
+  const contentType = asset.mimeType ?? asset.file?.type ?? "image/jpeg";
+
+  if (Platform.OS === "web") {
+    if (asset.file) {
+      form.append(name, asset.file, fileName);
+      return;
+    }
+
+    const response = await fetch(asset.uri);
+    const blob = await response.blob();
+    form.append(name, blob, fileName);
+    return;
+  }
+
   form.append(name, {
     uri: asset.uri,
-    name: asset.name ?? "photo.jpg",
-    type: asset.mimeType ?? "image/jpeg"
+    name: fileName,
+    type: contentType
   } as unknown as Blob);
 }
