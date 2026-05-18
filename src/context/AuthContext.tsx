@@ -28,6 +28,16 @@ type AuthState = {
 };
 
 const AuthContext = createContext<AuthState | null>(null);
+const basePath = (process.env.EXPO_PUBLIC_BASE_PATH ?? "").replace(/\/$/, "");
+
+function frontendUrl(path = "/") {
+  if (Platform.OS !== "web" || typeof window === "undefined") {
+    return path;
+  }
+
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${window.location.origin}${basePath}${normalizedPath}`;
+}
 
 const previewUsers: Record<UserRole, PreviewUser> = {
   Customer: {
@@ -96,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback((provider: "google" | "github" | "aad" = "aad") => {
     if (Platform.OS === "web" && typeof window !== "undefined") {
-      const redirect = encodeURIComponent(`${window.location.origin}/auth/callback`);
+      const redirect = encodeURIComponent(frontendUrl("/auth/callback"));
       window.location.href = `${AUTH_BASE_URL}/.auth/login/${provider}?post_login_redirect_uri=${redirect}`;
     }
   }, []);
@@ -129,7 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPrincipal(null);
     setPreview(null);
     if (Platform.OS === "web" && typeof window !== "undefined") {
-      const redirect = encodeURIComponent(window.location.origin);
+      const redirect = encodeURIComponent(frontendUrl("/"));
       window.location.href = `${AUTH_BASE_URL}/.auth/logout?post_logout_redirect_uri=${redirect}`;
     }
   }, []);
