@@ -522,6 +522,7 @@ export function HairdresserCustomersPage() {
   const services = useAsyncData(() => servicesApi.all(), []);
   const { showToast } = useToast();
   const [history, setHistory] = useState<HairdresserCustomerHistory | null>(null);
+  const [historyFallbackAppointments, setHistoryFallbackAppointments] = useState<Appointment[]>([]);
   const [historyLoadingId, setHistoryLoadingId] = useState("");
   const rows = useMemo(() => {
     const grouped = new Map<string, Appointment[]>();
@@ -537,7 +538,8 @@ export function HairdresserCustomersPage() {
         appointmentCount: visits.length,
         completedCount: visits.filter((item) => item.status === "Completed").length,
         upcomingCount: visits.filter((item) => item.status !== "Completed" && item.status !== "Cancelled" && new Date(item.startAt).getTime() >= Date.now()).length,
-        lastVisit: sorted[0]?.startAt
+        lastVisit: sorted[0]?.startAt,
+        visits
       };
     });
   }, [appointments.data]);
@@ -556,13 +558,14 @@ export function HairdresserCustomersPage() {
           hairdressersApi.customerHistory(item.customerId)
             .then((result) => {
               setHistory(result);
+              setHistoryFallbackAppointments(item.visits);
               showToast({ title: "Historia klienta pobrana", message: "Szczegóły wyświetlają się pod tabelą.", tone: "success" });
             })
             .catch((err) => showToast({ title: "Brak dostępu do historii", message: getErrorMessage(err), tone: "error" }))
             .finally(() => setHistoryLoadingId(""));
         }} />} />
       </StateView>
-      {history ? <CustomerHistoryCard history={history} services={services.data ?? []} /> : null}
+      {history ? <CustomerHistoryCard history={history} fallbackAppointments={historyFallbackAppointments} services={services.data ?? []} /> : null}
     </>
   );
 }
@@ -816,9 +819,12 @@ function DatePickerField({ label, value, onChange }: { label: string; value: str
   return <Field label={label} value={value} onChangeText={onChange} placeholder="YYYY-MM-DD" />;
 }
 
-function CustomerHistoryCard({ history, services }: { history: HairdresserCustomerHistory; services: SalonService[] }) {
-  const previousAppointments = Array.isArray(history.previousAppointments) ? history.previousAppointments : [];
-  const upcomingAppointments = Array.isArray(history.upcomingAppointments) ? history.upcomingAppointments : [];
+function CustomerHistoryCard({ history, fallbackAppointments, services }: { history: HairdresserCustomerHistory; fallbackAppointments: Appointment[]; services: SalonService[] }) {
+  const now = Date.now();
+  const fallbackPrevious = fallbackAppointments.filter((appointment) => appointment.status === "Completed" || appointment.status === "Cancelled" || new Date(appointment.startAt).getTime() < now);
+  const fallbackUpcoming = fallbackAppointments.filter((appointment) => appointment.status !== "Completed" && appointment.status !== "Cancelled" && new Date(appointment.startAt).getTime() >= now);
+  const previousAppointments = Array.isArray(history.previousAppointments) && history.previousAppointments.length ? history.previousAppointments : fallbackPrevious;
+  const upcomingAppointments = Array.isArray(history.upcomingAppointments) && history.upcomingAppointments.length ? history.upcomingAppointments : fallbackUpcoming;
   const serviceIds = Array.isArray(history.usedServiceIds) && history.usedServiceIds.length
     ? history.usedServiceIds
     : Array.from(new Set([...previousAppointments, ...upcomingAppointments].map((appointment) => appointment.salonServiceId).filter(Boolean)));

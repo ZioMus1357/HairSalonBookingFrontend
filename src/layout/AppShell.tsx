@@ -47,6 +47,13 @@ const roleLabels: Record<UserRole | "Guest", string> = {
   Guest: "Gość"
 };
 
+const roleHomePath = (role: UserRole | "Guest") => {
+  if (role === "Admin") return "/admin";
+  if (role === "Hairdresser") return "/hairdresser/dashboard";
+  if (role === "Customer") return "/booking";
+  return "/";
+};
+
 export function AppShell({ children }: { children: ReactNode }) {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 980;
@@ -91,9 +98,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Pressable>
         ))}
       </View>
-      {!inDashboard ? (
+      {inDashboard ? (
+        <Button label="Strona główna" variant="ghost" onPress={() => navigate("/")} icon={<Home size={17} color={colors.gold} />} />
+      ) : auth.isAuthenticated ? (
+        <Button label="Przejdź do panelu" onPress={() => navigate(roleHomePath(auth.role))} icon={<Grid2X2 size={17} color={colors.ink} />} />
+      ) : (
         <Button label="Umów wizytę" onPress={() => navigate("/booking")} icon={<CalendarDays size={17} color={colors.ink} />} />
-      ) : null}
+      )}
     </View>
   );
 
@@ -126,6 +137,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <Bell color={colors.ink} size={18} />
                   {toasts.length ? <View style={styles.dot} /> : null}
                 </Pressable>
+                <Pressable onPress={() => navigate(inDashboard ? "/" : roleHomePath(auth.role))}><Text style={styles.linkStrong}>{inDashboard ? "Strona" : "Panel"}</Text></Pressable>
                 <Chip label={roleLabels[auth.role]} active />
                 <Pressable onPress={auth.logout}><Text style={styles.link}>Wyloguj</Text></Pressable>
               </>
