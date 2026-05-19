@@ -10,7 +10,7 @@ import { useToast } from "../context/ToastContext";
 import { useAsyncData } from "../hooks/useAsyncData";
 import { useRouter } from "../router/RouterContext";
 import { colors, images, radii, shadow } from "../theme/tokens";
-import { Appointment, CreateAppointmentRequest, Customer, CustomerRequest, Hairdresser, HairdresserRequest, SalonPhoto, SalonService, SalonServiceRequest, UserRole } from "../types/domain";
+import { Appointment, AppointmentRequest, AppointmentStatus, CreateAppointmentRequest, Customer, CustomerRequest, Hairdresser, HairdresserRequest, SalonPhoto, SalonService, SalonServiceRequest, UserRole } from "../types/domain";
 import { addDays, appointmentLabel, dateOnly, fullName, getErrorMessage, money, toLocalDateTime } from "../utils/format";
 
 const fallbackGallery = [
@@ -18,6 +18,14 @@ const fallbackGallery = [
   { title: "Gloss color", image: images.hairTwo },
   { title: "Barber fade", image: images.barber }
 ];
+
+const appointmentStatuses: AppointmentStatus[] = ["Booked", "Confirmed", "Completed", "Cancelled"];
+const appointmentStatusLabels: Record<AppointmentStatus, string> = {
+  Booked: "Nowa",
+  Confirmed: "Potwierdzona",
+  Completed: "Zakończona",
+  Cancelled: "Anulowana"
+};
 
 export function HomePage() {
   const { navigate } = useRouter();
@@ -403,17 +411,35 @@ export function ProfilePage() {
 
 export function HairdresserDashboardPage() {
   const appointments = useAsyncData(() => hairdressersApi.myAppointments(), []);
+  const { showToast } = useToast();
+  const changeStatus = (appointment: Appointment, status: AppointmentStatus) =>
+    appointmentsApi.update(appointment.id, appointmentUpdateBody(appointment, status))
+      .then(() => {
+        showToast({ title: "Status wizyty zmieniony", tone: "success" });
+        appointments.refresh();
+      })
+      .catch((err) => showToast({ title: "Nie zmieniono statusu", message: getErrorMessage(err), tone: "error" }));
+
   return (
     <>
       <PageHeader kicker="Fryzjer" title="Panel fryzjera" subtitle="Najbliższe wizyty, powiadomienia i szybki podgląd pracy na dziś." image={images.barber} />
-      <VisitsView title="Najbliższe wizyty" appointments={(appointments.data ?? []).slice(0, 5)} loading={appointments.loading} error={appointments.error} />
+      <VisitsView title="Najbliższe wizyty" appointments={(appointments.data ?? []).slice(0, 5)} loading={appointments.loading} error={appointments.error} showHeader={false} onStatusChange={changeStatus} />
     </>
   );
 }
 
 export function HairdresserAppointmentsPage() {
   const appointments = useAsyncData(() => hairdressersApi.myAppointments(), []);
-  return <VisitsView title="Wizyty fryzjera" appointments={appointments.data ?? []} loading={appointments.loading} error={appointments.error} />;
+  const { showToast } = useToast();
+  const changeStatus = (appointment: Appointment, status: AppointmentStatus) =>
+    appointmentsApi.update(appointment.id, appointmentUpdateBody(appointment, status))
+      .then(() => {
+        showToast({ title: "Status wizyty zmieniony", tone: "success" });
+        appointments.refresh();
+      })
+      .catch((err) => showToast({ title: "Nie zmieniono statusu", message: getErrorMessage(err), tone: "error" }));
+
+  return <VisitsView title="Wizyty fryzjera" appointments={appointments.data ?? []} loading={appointments.loading} error={appointments.error} onStatusChange={changeStatus} />;
 }
 
 export function HairdresserCustomersPage() {
@@ -430,7 +456,75 @@ export function HairdresserCustomersPage() {
 }
 
 export function HairdresserProfilePage() {
-  return <HairdresserDashboardPage />;
+  const auth = useAuth();
+  const { showToast } = useToast();
+  const hairdresserId = auth.user?.hairdresserId ?? "";
+  const data = useAsyncData(() => hairdresserId ? hairdressersApi.byId(hairdresserId) : Promise.reject(new Error("Konto nie jest połączone z profilem fryzjera.")), [hairdresserId]);
+  const [form, setForm] = useState<HairdresserRequest>({ firstName: "", lastName: "", specialization: "", isActive: true });
+
+  useEffect(() => {
+    if (data.data) {
+      setForm({
+        firstName: data.data.firstName ?? "",
+        lastName: data.data.lastName ?? "",
+        specialization: data.data.specialization ?? "",
+        isActive: data.data.isActive
+      });
+    }
+  }, [data.data]);
+
+  const save = async () => {
+    if (!hairdresserId) {
+      showToast({ title: "Brak profilu fryzjera", message: "To konto nie jest przypisane do rekordu fryzjera.", tone: "error" });
+      return;
+    }
+
+    await hairdressersApi.update(hairdresserId, form);
+    showToast({ title: "Profil fryzjera zapisany", tone: "success" });
+    data.refresh();
+  };
+
+  const upload = async () => {
+    if (!hairdresserId) {
+      showToast({ title: "Brak profilu fryzjera", tone: "error" });
+      return;
+    }
+
+    const picked = await DocumentPicker.getDocumentAsync({ type: ["image/jpeg", "image/png", "image/webp"] });
+    if (!picked.canceled) {
+      await hairdressersApi.uploadPhoto(hairdresserId, picked.assets[0]);
+      showToast({ title: "Zdjęcie profilowe zapisane", tone: "success" });
+      data.refresh();
+    }
+  };
+
+  if (!hairdresserId) {
+    return <Gate title="Brak profilu fryzjera" message="To konto nie ma przypisanego profilu fryzjera. Administrator musi połączyć użytkownika z fryzjerem." />;
+  }
+
+  return (
+    <>
+      <PageHeader kicker="Profil" title="Profil fryzjera" subtitle="Edytuj dane widoczne dla klientów: imię, nazwisko, specjalizację, aktywność i zdjęcie profilowe." image={data.data?.photoUrl ?? images.stylist} />
+      <StateView loading={data.loading} error={data.error} empty={!data.data}>
+        <View style={screenStyles.twoCol}>
+          <View style={screenStyles.profileForm}>
+            <Card>
+              <HairdresserForm form={form} setForm={setForm} />
+              <Button label="Zapisz profil" icon={<Edit3 size={17} color={colors.ink} />} onPress={() => save().catch((err) => showToast({ title: "Nie zapisano profilu", message: getErrorMessage(err), tone: "error" }))} />
+            </Card>
+          </View>
+          <View style={screenStyles.profilePhotoPanel}>
+            <Card>
+              <Image source={{ uri: data.data?.photoUrl || images.stylist }} style={screenStyles.profilePhoto} />
+              <Text style={screenStyles.cardTitle}>{data.data ? fullName(data.data) : "Zdjęcie profilowe"}</Text>
+              <Text style={screenStyles.muted}>To zdjęcie jest używane na publicznej liście fryzjerów i w profilu stylisty.</Text>
+              <Button label="Zmień zdjęcie" variant="ghost" icon={<Upload size={17} color={colors.gold} />} onPress={() => upload().catch((err) => showToast({ title: "Upload nieudany", message: getErrorMessage(err), tone: "error" }))} />
+            </Card>
+          </View>
+        </View>
+      </StateView>
+    </>
+  );
 }
 
 export function AdminDashboardPage() {
@@ -501,7 +595,16 @@ export function AdminServicesPage() {
 
 export function AdminAppointmentsPage() {
   const data = useAsyncData(() => adminApi.appointments(), []);
-  return <VisitsView title="Wszystkie wizyty" appointments={data.data ?? []} loading={data.loading} error={data.error} adminRefresh={data.refresh} />;
+  const { showToast } = useToast();
+  const changeStatus = (appointment: Appointment, status: AppointmentStatus) =>
+    appointmentsApi.update(appointment.id, appointmentUpdateBody(appointment, status))
+      .then(() => {
+        showToast({ title: "Status wizyty zmieniony", tone: "success" });
+        data.refresh();
+      })
+      .catch((err) => showToast({ title: "Nie zmieniono statusu", message: getErrorMessage(err), tone: "error" }));
+
+  return <VisitsView title="Wszystkie wizyty" appointments={data.data ?? []} loading={data.loading} error={data.error} adminRefresh={data.refresh} onStatusChange={changeStatus} />;
 }
 
 export function AdminGalleryPage() {
@@ -592,23 +695,50 @@ function Testimonials() {
   return <View style={screenStyles.grid}>{["Minimalistyczne miejsce i perfekcyjne cięcie.", "Najlepszy booking beauty, z jakiego korzystałam.", "Spokojny luksus bez nadęcia."].map((text, index) => <Card key={text}><Text style={screenStyles.cardTitle}>★★★★★</Text><Text style={screenStyles.muted}>{text}</Text><Text style={screenStyles.goldText}>Klientka #{index + 1}</Text></Card>)}</View>;
 }
 
-function VisitsView({ title, appointments, loading, error, adminRefresh }: { title: string; appointments: Appointment[]; loading?: boolean; error?: string; adminRefresh?: () => void }) {
+function appointmentUpdateBody(appointment: Appointment, status: AppointmentStatus): AppointmentRequest {
+  return {
+    customerId: appointment.customerId,
+    hairdresserId: appointment.hairdresserId,
+    salonServiceId: appointment.salonServiceId,
+    startAt: appointment.startAt,
+    status,
+    notes: appointment.notes
+  };
+}
+
+function VisitsView({ title, appointments, loading, error, adminRefresh, showHeader = true, onStatusChange }: { title: string; appointments: Appointment[]; loading?: boolean; error?: string; adminRefresh?: () => void; showHeader?: boolean; onStatusChange?: (appointment: Appointment, status: AppointmentStatus) => void }) {
   const services = useAsyncData(() => servicesApi.all(), []);
   const hairdressers = useAsyncData(() => hairdressersApi.all(), []);
   const customers = useAsyncData(() => customersApi.all(), []);
   const { showToast } = useToast();
+  const table = (
+    <StateView loading={loading || services.loading || hairdressers.loading || customers.loading} error={error} empty={appointments.length === 0}>
+      <DataTable items={appointments} columns={[
+        { title: "Termin", render: (item) => toLocalDateTime(item.startAt) },
+        { title: "Usługa", render: (item) => appointmentLabel(item, services.data ?? [], hairdressers.data ?? [], customers.data ?? []).service },
+        { title: "Fryzjer", render: (item) => appointmentLabel(item, services.data ?? [], hairdressers.data ?? [], customers.data ?? []).hairdresser },
+        { title: "Klient", render: (item) => appointmentLabel(item, services.data ?? [], hairdressers.data ?? [], customers.data ?? []).customer },
+        { title: "Status", render: (item) => appointmentStatusLabels[item.status] ?? item.status }
+      ]} actions={(item) => {
+        const statusButtons = onStatusChange ? (
+          <View style={screenStyles.statusActions}>
+            {appointmentStatuses.map((status) => (
+              <Chip key={status} label={appointmentStatusLabels[status]} active={item.status === status} onPress={() => onStatusChange(item, status)} />
+            ))}
+          </View>
+        ) : null;
+        const deleteButton = adminRefresh ? (
+          <Button label="Usuń" variant="ghost" onPress={() => confirmDelete(() => appointmentsApi.remove(item.id).then(() => { showToast({ title: "Wizyta usunięta", tone: "success" }); adminRefresh(); }))} />
+        ) : null;
+        return statusButtons || deleteButton ? <View style={screenStyles.tableActionStack}>{statusButtons}{deleteButton}</View> : null;
+      }} />
+    </StateView>
+  );
+
   return (
     <>
-      <PageHeader kicker="Wizyty" title={title} subtitle="Przegląd terminów z usługą, stylistą, klientem i aktualnym statusem rezerwacji." image={images.barber} />
-      <StateView loading={loading || services.loading || hairdressers.loading || customers.loading} error={error} empty={appointments.length === 0}>
-        <DataTable items={appointments} columns={[
-          { title: "Termin", render: (item) => toLocalDateTime(item.startAt) },
-          { title: "Usługa", render: (item) => appointmentLabel(item, services.data ?? [], hairdressers.data ?? [], customers.data ?? []).service },
-          { title: "Fryzjer", render: (item) => appointmentLabel(item, services.data ?? [], hairdressers.data ?? [], customers.data ?? []).hairdresser },
-          { title: "Klient", render: (item) => appointmentLabel(item, services.data ?? [], hairdressers.data ?? [], customers.data ?? []).customer },
-          { title: "Status", render: (item) => item.status }
-        ]} actions={adminRefresh ? (item) => <Button label="Usuń" variant="ghost" onPress={() => confirmDelete(() => appointmentsApi.remove(item.id).then(() => { showToast({ title: "Wizyta usunięta", tone: "success" }); adminRefresh(); }))} /> : undefined} />
-      </StateView>
+      {showHeader ? <PageHeader kicker="Wizyty" title={title} subtitle="Przegląd terminów z usługą, stylistą, klientem i aktualnym statusem rezerwacji." image={images.barber} /> : null}
+      {showHeader ? table : <View style={screenStyles.plainPanel}><Text style={screenStyles.cardTitle}>{title}</Text>{table}</View>}
     </>
   );
 }
@@ -635,6 +765,10 @@ function ServicesCrud({ data }: { data: ReturnType<typeof useAsyncData<SalonServ
 
 function CustomerForm({ form, setForm }: { form: CustomerRequest; setForm: (form: CustomerRequest) => void }) {
   return <><Field label="Imię" value={form.firstName} onChangeText={(firstName) => setForm({ ...form, firstName })} /><Field label="Nazwisko" value={form.lastName} onChangeText={(lastName) => setForm({ ...form, lastName })} /><Field label="Telefon" value={form.phoneNumber} onChangeText={(phoneNumber) => setForm({ ...form, phoneNumber })} /><Field label="Email" value={form.email} onChangeText={(email) => setForm({ ...form, email })} /><Field label="Notatki" value={form.notes ?? ""} onChangeText={(notes) => setForm({ ...form, notes })} multiline /></>;
+}
+
+function HairdresserForm({ form, setForm }: { form: HairdresserRequest; setForm: (form: HairdresserRequest) => void }) {
+  return <><Field label="Imię" value={form.firstName} onChangeText={(firstName) => setForm({ ...form, firstName })} /><Field label="Nazwisko" value={form.lastName} onChangeText={(lastName) => setForm({ ...form, lastName })} /><Field label="Specjalizacja" value={form.specialization} onChangeText={(specialization) => setForm({ ...form, specialization })} multiline /><Chip label={form.isActive ? "Aktywny profil" : "Profil nieaktywny"} active={form.isActive} onPress={() => setForm({ ...form, isActive: !form.isActive })} /></>;
 }
 
 function Summary({ rows }: { rows: Array<[string, string]> }) {
@@ -891,6 +1025,22 @@ const screenStyles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 14
   },
+  profileForm: {
+    flex: 1,
+    minWidth: 300
+  },
+  profilePhotoPanel: {
+    width: 360,
+    maxWidth: "100%",
+    flexShrink: 0
+  },
+  profilePhoto: {
+    width: "100%",
+    height: 250,
+    borderRadius: radii.md,
+    backgroundColor: colors.bone,
+    marginBottom: 14
+  },
   profileStack: {
     gap: 14,
     width: "100%"
@@ -1056,6 +1206,25 @@ const screenStyles = StyleSheet.create({
     fontWeight: "900",
     flex: 1,
     textAlign: "right"
+  },
+  plainPanel: {
+    backgroundColor: "#fff",
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: 18,
+    gap: 12,
+    ...shadow
+  },
+  tableActionStack: {
+    gap: 8,
+    alignItems: "flex-start"
+  },
+  statusActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    maxWidth: 520
   },
   metric: {
     flex: 1,
