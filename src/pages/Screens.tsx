@@ -1,6 +1,6 @@
 import * as DocumentPicker from "expo-document-picker";
 import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Clock3, Edit3, Image as ImageIcon, Plus, RefreshCcw, Scissors, Trash2, Upload, UserRound, UsersRound } from "lucide-react-native";
-import { useEffect, useMemo, useState } from "react";
+import { createElement, useEffect, useMemo, useState } from "react";
 import { Alert, Image, ImageBackground, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { adminApi, appointmentsApi, authApi, AUTH_BASE_URL, customersApi, galleryApi, hairdressersApi, notificationsApi, servicesApi } from "../api";
@@ -10,7 +10,7 @@ import { useToast } from "../context/ToastContext";
 import { useAsyncData } from "../hooks/useAsyncData";
 import { useRouter } from "../router/RouterContext";
 import { colors, images, radii, shadow } from "../theme/tokens";
-import { Appointment, AppointmentRequest, AppointmentStatus, CreateAppointmentRequest, Customer, CustomerRequest, Hairdresser, HairdresserRequest, SalonPhoto, SalonService, SalonServiceRequest, UserRole } from "../types/domain";
+import { Appointment, AppointmentRequest, AppointmentStatus, CreateAppointmentRequest, Customer, CustomerRequest, Hairdresser, HairdresserCustomerHistory, HairdresserRequest, SalonPhoto, SalonService, SalonServiceRequest, UserRole } from "../types/domain";
 import { addDays, appointmentLabel, dateOnly, fullName, getErrorMessage, money, toLocalDateTime } from "../utils/format";
 
 const fallbackGallery = [
@@ -503,8 +503,13 @@ export function HairdresserAppointmentsPage() {
         <SelectRail label="Status" value={statusFilter} options={[{ label: "Wszystkie", value: "all" }, ...appointmentStatuses.map((status) => ({ label: appointmentStatusLabels[status], value: status }))]} onChange={setStatusFilter} />
         <SelectRail label="Klient" value={customerFilter} options={[{ label: "Wszyscy", value: "all" }, ...customerOptions]} onChange={setCustomerFilter} />
         <View style={screenStyles.filterDates}>
-          <Field label="Od daty" value={dateFrom} onChangeText={setDateFrom} placeholder="YYYY-MM-DD" />
-          <Field label="Do daty" value={dateTo} onChangeText={setDateTo} placeholder="YYYY-MM-DD" />
+          <DatePickerField label="Od daty" value={dateFrom} onChange={setDateFrom} />
+          <DatePickerField label="Do daty" value={dateTo} onChange={setDateTo} />
+        </View>
+        <View style={screenStyles.dateQuickActions}>
+          <Chip label="Dzisiaj" onPress={() => { const today = dateOnly(); setDateFrom(today); setDateTo(today); }} />
+          <Chip label="Najbliższe 7 dni" onPress={() => { setDateFrom(dateOnly()); setDateTo(addDays(7)); }} />
+          <Chip label="Wyczyść daty" onPress={() => { setDateFrom(""); setDateTo(""); }} />
         </View>
       </Card>
       <VisitsView title="Lista wizyt" appointments={filteredAppointments} loading={appointments.loading} error={appointments.error} showHeader={false} onStatusChange={changeStatus} />
@@ -514,7 +519,10 @@ export function HairdresserAppointmentsPage() {
 
 export function HairdresserCustomersPage() {
   const appointments = useAsyncData(() => hairdressersApi.myAppointments(), []);
+  const services = useAsyncData(() => servicesApi.all(), []);
   const { showToast } = useToast();
+  const [history, setHistory] = useState<HairdresserCustomerHistory | null>(null);
+  const [historyLoadingId, setHistoryLoadingId] = useState("");
   const rows = useMemo(() => {
     const grouped = new Map<string, Appointment[]>();
     (appointments.data ?? []).forEach((appointment) => {
@@ -543,54 +551,26 @@ export function HairdresserCustomersPage() {
           { title: "Zakończone", render: (item) => String(item.completedCount) },
           { title: "Zaplanowane", render: (item) => String(item.upcomingCount) },
           { title: "Ostatnia wizyta", render: (item) => item.lastVisit ? toLocalDateTime(item.lastVisit) : "Brak" }
-        ]} actions={(item) => <Button label="Historia" variant="ghost" onPress={() => hairdressersApi.customerHistory(item.customerId).then(() => showToast({ title: "Historia klienta pobrana", tone: "success" })).catch((err) => showToast({ title: "Brak dostępu do historii", message: getErrorMessage(err), tone: "error" }))} />} />
+        ]} actions={(item) => <Button label={historyLoadingId === item.customerId ? "Pobieram..." : "Pokaż historię"} variant="ghost" disabled={historyLoadingId === item.customerId} onPress={() => {
+          setHistoryLoadingId(item.customerId);
+          hairdressersApi.customerHistory(item.customerId)
+            .then((result) => {
+              setHistory(result);
+              showToast({ title: "Historia klienta pobrana", message: "Szczegóły wyświetlają się pod tabelą.", tone: "success" });
+            })
+            .catch((err) => showToast({ title: "Brak dostępu do historii", message: getErrorMessage(err), tone: "error" }))
+            .finally(() => setHistoryLoadingId(""));
+        }} />} />
       </StateView>
+      {history ? <CustomerHistoryCard history={history} services={services.data ?? []} /> : null}
     </>
   );
 }
 
 export function HairdresserProfilePage() {
   const auth = useAuth();
-  const { showToast } = useToast();
   const hairdresserId = auth.user?.hairdresserId ?? "";
   const data = useAsyncData(() => hairdresserId ? hairdressersApi.byId(hairdresserId) : Promise.reject(new Error("Konto nie jest połączone z profilem fryzjera.")), [hairdresserId]);
-  const [form, setForm] = useState<HairdresserRequest>({ firstName: "", lastName: "", specialization: "", isActive: true });
-
-  useEffect(() => {
-    if (data.data) {
-      setForm({
-        firstName: data.data.firstName ?? "",
-        lastName: data.data.lastName ?? "",
-        specialization: data.data.specialization ?? "",
-        isActive: data.data.isActive
-      });
-    }
-  }, [data.data]);
-
-  const save = async () => {
-    if (!hairdresserId) {
-      showToast({ title: "Brak profilu fryzjera", message: "To konto nie jest przypisane do rekordu fryzjera.", tone: "error" });
-      return;
-    }
-
-    await hairdressersApi.update(hairdresserId, form);
-    showToast({ title: "Profil fryzjera zapisany", tone: "success" });
-    data.refresh();
-  };
-
-  const upload = async () => {
-    if (!hairdresserId) {
-      showToast({ title: "Brak profilu fryzjera", tone: "error" });
-      return;
-    }
-
-    const picked = await DocumentPicker.getDocumentAsync({ type: ["image/jpeg", "image/png", "image/webp"] });
-    if (!picked.canceled) {
-      await hairdressersApi.uploadPhoto(hairdresserId, picked.assets[0]);
-      showToast({ title: "Zdjęcie profilowe zapisane", tone: "success" });
-      data.refresh();
-    }
-  };
 
   if (!hairdresserId) {
     return <Gate title="Brak profilu fryzjera" message="To konto nie ma przypisanego profilu fryzjera. Administrator musi połączyć użytkownika z fryzjerem." />;
@@ -598,21 +578,26 @@ export function HairdresserProfilePage() {
 
   return (
     <>
-      <PageHeader kicker="Profil" title="Profil fryzjera" subtitle="Edytuj dane widoczne dla klientów: imię, nazwisko, specjalizację, aktywność i zdjęcie profilowe." image={data.data?.photoUrl ?? images.stylist} />
+      <PageHeader kicker="Profil" title="Profil fryzjera" subtitle="Podgląd danych widocznych dla klientów. Zmiany profilu i zdjęcia wykonuje administrator salonu." image={data.data?.photoUrl ?? images.stylist} />
       <StateView loading={data.loading} error={data.error} empty={!data.data}>
         <View style={screenStyles.twoCol}>
           <View style={screenStyles.profileForm}>
             <Card>
-              <HairdresserForm form={form} setForm={setForm} />
-              <Button label="Zapisz profil" icon={<Edit3 size={17} color={colors.ink} />} onPress={() => save().catch((err) => showToast({ title: "Nie zapisano profilu", message: getErrorMessage(err), tone: "error" }))} />
+              <Text style={screenStyles.cardTitle}>Dane profilu</Text>
+              <Summary rows={[
+                ["Imię i nazwisko", data.data ? fullName(data.data) : "Brak"],
+                ["Specjalizacja", data.data?.specialization || "Brak"],
+                ["Status", data.data?.isActive ? "Aktywny" : "Nieaktywny"],
+                ["Id profilu", data.data?.id ?? "Brak"]
+              ]} />
+              <Text style={screenStyles.muted}>Jeżeli dane są nieaktualne, poproś administratora o edycję profilu w panelu administracyjnym.</Text>
             </Card>
           </View>
           <View style={screenStyles.profilePhotoPanel}>
             <Card>
               <Image source={{ uri: data.data?.photoUrl || images.stylist }} style={screenStyles.profilePhoto} />
               <Text style={screenStyles.cardTitle}>{data.data ? fullName(data.data) : "Zdjęcie profilowe"}</Text>
-              <Text style={screenStyles.muted}>To zdjęcie jest używane na publicznej liście fryzjerów i w profilu stylisty.</Text>
-              <Button label="Zmień zdjęcie" variant="ghost" icon={<Upload size={17} color={colors.gold} />} onPress={() => upload().catch((err) => showToast({ title: "Upload nieudany", message: getErrorMessage(err), tone: "error" }))} />
+              <Text style={screenStyles.muted}>To zdjęcie jest używane na publicznej liście fryzjerów i w profilu stylisty. Upload zdjęcia jest dostępny tylko dla administratora.</Text>
             </Card>
           </View>
         </View>
@@ -799,6 +784,71 @@ function appointmentUpdateBody(appointment: Appointment, status: AppointmentStat
     status,
     notes: appointment.notes
   };
+}
+
+function DatePickerField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  if (Platform.OS === "web") {
+    return (
+      <View style={screenStyles.datePickerField}>
+        <Text style={screenStyles.fieldLabel}>{label}</Text>
+        <View style={screenStyles.dateInputShell}>
+          <CalendarDays size={17} color={colors.gold} />
+          {createElement("input", {
+            type: "date",
+            value,
+            onChange: (event: { target: { value: string } }) => onChange(event.target.value),
+            style: {
+              border: "none",
+              outline: "none",
+              background: "transparent",
+              color: colors.ink,
+              fontFamily: "inherit",
+              fontSize: 15,
+              fontWeight: 800,
+              width: "100%"
+            }
+          })}
+        </View>
+      </View>
+    );
+  }
+
+  return <Field label={label} value={value} onChangeText={onChange} placeholder="YYYY-MM-DD" />;
+}
+
+function CustomerHistoryCard({ history, services }: { history: HairdresserCustomerHistory; services: SalonService[] }) {
+  const serviceNames = history.usedServiceIds
+    .map((id) => services.find((service) => service.id === id)?.name ?? id)
+    .join(", ");
+  const renderAppointments = (items: Appointment[]) => items.slice(0, 5).map((appointment) => (
+    <View key={appointment.id} style={screenStyles.historyVisit}>
+      <Text style={screenStyles.historyVisitTitle}>{toLocalDateTime(appointment.startAt)}</Text>
+      <Text style={screenStyles.muted}>{services.find((service) => service.id === appointment.salonServiceId)?.name ?? appointment.salonServiceId} · {appointmentStatusLabels[appointment.status] ?? appointment.status}</Text>
+    </View>
+  ));
+
+  return (
+    <Card>
+      <Text style={screenStyles.cardTitle}>Historia klienta: {fullName(history.customer)}</Text>
+      <Summary rows={[
+        ["Email", history.customer.email],
+        ["Telefon", history.customer.phoneNumber],
+        ["Poprzednie wizyty", String(history.previousAppointments.length)],
+        ["Nadchodzące wizyty", String(history.upcomingAppointments.length)],
+        ["Wykorzystane usługi", serviceNames || "Brak"]
+      ]} />
+      <View style={screenStyles.twoCol}>
+        <View style={screenStyles.historyColumn}>
+          <Text style={screenStyles.sectionMiniTitle}>Poprzednie wizyty</Text>
+          {history.previousAppointments.length ? renderAppointments(history.previousAppointments) : <Text style={screenStyles.muted}>Brak poprzednich wizyt.</Text>}
+        </View>
+        <View style={screenStyles.historyColumn}>
+          <Text style={screenStyles.sectionMiniTitle}>Nadchodzące wizyty</Text>
+          {history.upcomingAppointments.length ? renderAppointments(history.upcomingAppointments) : <Text style={screenStyles.muted}>Brak nadchodzących wizyt.</Text>}
+        </View>
+      </View>
+    </Card>
+  );
 }
 
 function VisitsView({ title, appointments, loading, error, adminRefresh, showHeader = true, onStatusChange, customers = [] }: { title: string; appointments: Appointment[]; loading?: boolean; error?: string; adminRefresh?: () => void; showHeader?: boolean; onStatusChange?: (appointment: Appointment, status: AppointmentStatus) => void; customers?: Customer[] }) {
@@ -1143,6 +1193,56 @@ const screenStyles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 12
+  },
+  dateQuickActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  datePickerField: {
+    flex: 1,
+    minWidth: 190,
+    gap: 7,
+    marginBottom: 12
+  },
+  fieldLabel: {
+    color: colors.charcoal,
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  dateInputShell: {
+    minHeight: 48,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.pearl,
+    paddingHorizontal: 13,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10
+  },
+  historyColumn: {
+    flex: 1,
+    minWidth: 260,
+    gap: 10
+  },
+  historyVisit: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.pearl,
+    padding: 12
+  },
+  historyVisitTitle: {
+    color: colors.ink,
+    fontWeight: "900",
+    marginBottom: 4
+  },
+  sectionMiniTitle: {
+    color: colors.ink,
+    fontSize: 14,
+    fontWeight: "900"
   },
   profileStack: {
     gap: 14,
