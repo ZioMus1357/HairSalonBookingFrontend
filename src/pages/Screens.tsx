@@ -411,7 +411,77 @@ export function ProfilePage() {
 
 export function HairdresserDashboardPage() {
   const appointments = useAsyncData(() => hairdressersApi.myAppointments(), []);
+  const customers = useAsyncData(() => customersApi.all(), []);
+  const rows = appointments.data ?? [];
+  const now = Date.now();
+  const completed = rows.filter((item) => item.status === "Completed").length;
+  const planned = rows.filter((item) => item.status !== "Completed" && item.status !== "Cancelled" && new Date(item.startAt).getTime() >= now).length;
+  const today = dateOnly();
+  const todayAppointments = rows.filter((item) => item.startAt.slice(0, 10) === today && item.status !== "Cancelled").length;
+  const uniqueCustomers = new Set(rows.map((item) => item.customerId)).size;
+  const topCustomer = rows.reduce<Record<string, number>>((acc, item) => {
+    if (item.status === "Completed") {
+      acc[item.customerId] = (acc[item.customerId] ?? 0) + 1;
+    }
+    return acc;
+  }, {});
+  const topCustomerCount = Math.max(0, ...Object.values(topCustomer));
+  const topCustomerId = Object.entries(topCustomer).sort((a, b) => b[1] - a[1])[0]?.[0];
+  const topCustomerName = fullName((customers.data ?? []).find((item) => item.id === topCustomerId));
+  const completionRate = rows.length ? Math.round((completed / rows.length) * 100) : 0;
+  const nextAppointment = [...rows]
+    .filter((item) => item.status !== "Cancelled" && item.status !== "Completed" && new Date(item.startAt).getTime() >= now)
+    .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())[0];
+
+  return (
+    <>
+      <PageHeader kicker="Fryzjer" title="Panel fryzjera" subtitle="Najbliższe wizyty, powiadomienia i szybki podgląd pracy na dziś." image={images.barber} />
+      <StateView loading={appointments.loading || customers.loading} error={appointments.error || customers.error} empty={false}>
+        <View style={screenStyles.grid}>
+          <Metric title="Wykonane usługi" value={completed} icon={<Check color={colors.gold} />} />
+          <Metric title="Zaplanowane wizyty" value={planned} icon={<CalendarDays color={colors.gold} />} />
+          <Metric title="Wizyty dzisiaj" value={todayAppointments} icon={<Clock3 color={colors.gold} />} />
+          <Metric title="Stali klienci" value={uniqueCustomers} icon={<UsersRound color={colors.gold} />} />
+        </View>
+        <View style={screenStyles.twoCol}>
+          <View style={screenStyles.dashboardInsight}>
+            <Card>
+              <Text style={screenStyles.cardTitle}>Najbardziej lojalny klient</Text>
+              <Text style={screenStyles.metricValue}>{topCustomerCount}</Text>
+              <Text style={screenStyles.muted}>{topCustomerCount ? `${topCustomerName} - wykonane usługi dla jednej osoby` : "Brak zakończonych wizyt do analizy."}</Text>
+            </Card>
+          </View>
+          <View style={screenStyles.dashboardInsight}>
+            <Card>
+              <Text style={screenStyles.cardTitle}>Rytm pracy</Text>
+              <Text style={screenStyles.metricValue}>{completionRate}%</Text>
+              <Text style={screenStyles.muted}>{nextAppointment ? `Najbliższa wizyta: ${toLocalDateTime(nextAppointment.startAt)}` : "Brak zaplanowanych przyszłych wizyt."}</Text>
+            </Card>
+          </View>
+        </View>
+      </StateView>
+    </>
+  );
+}
+
+export function HairdresserAppointmentsPage() {
+  const appointments = useAsyncData(() => hairdressersApi.myAppointments(), []);
+  const customers = useAsyncData(() => customersApi.all(), []);
   const { showToast } = useToast();
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [customerFilter, setCustomerFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const filteredAppointments = useMemo(() => {
+    return (appointments.data ?? []).filter((appointment) => {
+      const appointmentDay = appointment.startAt.slice(0, 10);
+      const matchesStatus = statusFilter === "all" || appointment.status === statusFilter;
+      const matchesCustomer = customerFilter === "all" || appointment.customerId === customerFilter;
+      const matchesFrom = !dateFrom || appointmentDay >= dateFrom;
+      const matchesTo = !dateTo || appointmentDay <= dateTo;
+      return matchesStatus && matchesCustomer && matchesFrom && matchesTo;
+    });
+  }, [appointments.data, customerFilter, dateFrom, dateTo, statusFilter]);
   const changeStatus = (appointment: Appointment, status: AppointmentStatus) =>
     appointmentsApi.update(appointment.id, appointmentUpdateBody(appointment, status))
       .then(() => {
@@ -422,24 +492,18 @@ export function HairdresserDashboardPage() {
 
   return (
     <>
-      <PageHeader kicker="Fryzjer" title="Panel fryzjera" subtitle="Najbliższe wizyty, powiadomienia i szybki podgląd pracy na dziś." image={images.barber} />
-      <VisitsView title="Najbliższe wizyty" appointments={(appointments.data ?? []).slice(0, 5)} loading={appointments.loading} error={appointments.error} showHeader={false} onStatusChange={changeStatus} />
+      <PageHeader kicker="Wizyty" title="Wizyty fryzjera" subtitle="Filtruj listę po dacie, kliencie i statusie, a potem aktualizuj przebieg wizyty jednym kliknięciem." image={images.barber} />
+      <Card>
+        <SelectRail label="Status" value={statusFilter} options={[{ label: "Wszystkie", value: "all" }, ...appointmentStatuses.map((status) => ({ label: appointmentStatusLabels[status], value: status }))]} onChange={setStatusFilter} />
+        <SelectRail label="Klient" value={customerFilter} options={[{ label: "Wszyscy", value: "all" }, ...(customers.data ?? []).map((customer) => ({ label: fullName(customer), value: customer.id }))]} onChange={setCustomerFilter} />
+        <View style={screenStyles.filterDates}>
+          <Field label="Od daty" value={dateFrom} onChangeText={setDateFrom} placeholder="YYYY-MM-DD" />
+          <Field label="Do daty" value={dateTo} onChangeText={setDateTo} placeholder="YYYY-MM-DD" />
+        </View>
+      </Card>
+      <VisitsView title="Lista wizyt" appointments={filteredAppointments} loading={appointments.loading || customers.loading} error={appointments.error || customers.error} showHeader={false} onStatusChange={changeStatus} />
     </>
   );
-}
-
-export function HairdresserAppointmentsPage() {
-  const appointments = useAsyncData(() => hairdressersApi.myAppointments(), []);
-  const { showToast } = useToast();
-  const changeStatus = (appointment: Appointment, status: AppointmentStatus) =>
-    appointmentsApi.update(appointment.id, appointmentUpdateBody(appointment, status))
-      .then(() => {
-        showToast({ title: "Status wizyty zmieniony", tone: "success" });
-        appointments.refresh();
-      })
-      .catch((err) => showToast({ title: "Nie zmieniono statusu", message: getErrorMessage(err), tone: "error" }));
-
-  return <VisitsView title="Wizyty fryzjera" appointments={appointments.data ?? []} loading={appointments.loading} error={appointments.error} onStatusChange={changeStatus} />;
 }
 
 export function HairdresserCustomersPage() {
@@ -1040,6 +1104,15 @@ const screenStyles = StyleSheet.create({
     borderRadius: radii.md,
     backgroundColor: colors.bone,
     marginBottom: 14
+  },
+  dashboardInsight: {
+    flex: 1,
+    minWidth: 280
+  },
+  filterDates: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12
   },
   profileStack: {
     gap: 14,
