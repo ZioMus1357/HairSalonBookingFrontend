@@ -817,9 +817,15 @@ function DatePickerField({ label, value, onChange }: { label: string; value: str
 }
 
 function CustomerHistoryCard({ history, services }: { history: HairdresserCustomerHistory; services: SalonService[] }) {
-  const serviceNames = history.usedServiceIds
+  const previousAppointments = Array.isArray(history.previousAppointments) ? history.previousAppointments : [];
+  const upcomingAppointments = Array.isArray(history.upcomingAppointments) ? history.upcomingAppointments : [];
+  const serviceIds = Array.isArray(history.usedServiceIds) && history.usedServiceIds.length
+    ? history.usedServiceIds
+    : Array.from(new Set([...previousAppointments, ...upcomingAppointments].map((appointment) => appointment.salonServiceId).filter(Boolean)));
+  const serviceNames = serviceIds
     .map((id) => services.find((service) => service.id === id)?.name ?? id)
     .join(", ");
+  const customer = history.customer;
   const renderAppointments = (items: Appointment[]) => items.slice(0, 5).map((appointment) => (
     <View key={appointment.id} style={screenStyles.historyVisit}>
       <Text style={screenStyles.historyVisitTitle}>{toLocalDateTime(appointment.startAt)}</Text>
@@ -829,22 +835,22 @@ function CustomerHistoryCard({ history, services }: { history: HairdresserCustom
 
   return (
     <Card>
-      <Text style={screenStyles.cardTitle}>Historia klienta: {fullName(history.customer)}</Text>
+      <Text style={screenStyles.cardTitle}>Historia klienta: {customer ? fullName(customer) : "Klient"}</Text>
       <Summary rows={[
-        ["Email", history.customer.email],
-        ["Telefon", history.customer.phoneNumber],
-        ["Poprzednie wizyty", String(history.previousAppointments.length)],
-        ["Nadchodzące wizyty", String(history.upcomingAppointments.length)],
+        ["Email", customer?.email ?? "Brak"],
+        ["Telefon", customer?.phoneNumber ?? "Brak"],
+        ["Poprzednie wizyty", String(previousAppointments.length)],
+        ["Nadchodzące wizyty", String(upcomingAppointments.length)],
         ["Wykorzystane usługi", serviceNames || "Brak"]
       ]} />
       <View style={screenStyles.twoCol}>
         <View style={screenStyles.historyColumn}>
           <Text style={screenStyles.sectionMiniTitle}>Poprzednie wizyty</Text>
-          {history.previousAppointments.length ? renderAppointments(history.previousAppointments) : <Text style={screenStyles.muted}>Brak poprzednich wizyt.</Text>}
+          {previousAppointments.length ? renderAppointments(previousAppointments) : <Text style={screenStyles.muted}>Brak poprzednich wizyt.</Text>}
         </View>
         <View style={screenStyles.historyColumn}>
           <Text style={screenStyles.sectionMiniTitle}>Nadchodzące wizyty</Text>
-          {history.upcomingAppointments.length ? renderAppointments(history.upcomingAppointments) : <Text style={screenStyles.muted}>Brak nadchodzących wizyt.</Text>}
+          {upcomingAppointments.length ? renderAppointments(upcomingAppointments) : <Text style={screenStyles.muted}>Brak nadchodzących wizyt.</Text>}
         </View>
       </View>
     </Card>

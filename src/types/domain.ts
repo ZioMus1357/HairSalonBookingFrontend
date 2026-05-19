@@ -92,10 +92,10 @@ export type SalonPhotoRequest = {
 };
 
 export type HairdresserCustomerHistory = {
-  customer: Customer;
-  previousAppointments: Appointment[];
-  upcomingAppointments: Appointment[];
-  usedServiceIds: string[];
+  customer?: Customer | null;
+  previousAppointments?: Appointment[] | null;
+  upcomingAppointments?: Appointment[] | null;
+  usedServiceIds?: string[] | null;
 };
 
 export type NotificationItem = {
