@@ -10,7 +10,7 @@ import { useToast } from "../context/ToastContext";
 import { useAsyncData } from "../hooks/useAsyncData";
 import { useRouter } from "../router/RouterContext";
 import { colors, images, radii, shadow } from "../theme/tokens";
-import { Appointment, AppointmentRequest, Customer, CustomerRequest, Hairdresser, HairdresserRequest, SalonPhoto, SalonService, SalonServiceRequest, UserRole } from "../types/domain";
+import { Appointment, CreateAppointmentRequest, Customer, CustomerRequest, Hairdresser, HairdresserRequest, SalonPhoto, SalonService, SalonServiceRequest, UserRole } from "../types/domain";
 import { addDays, appointmentLabel, dateOnly, fullName, getErrorMessage, money, toLocalDateTime } from "../utils/format";
 
 const fallbackGallery = [
@@ -336,7 +336,7 @@ export function BookingPage() {
       showToast({ title: "Uzupełnij wszystkie kroki", tone: "error" });
       return;
     }
-    const request: AppointmentRequest = { customerId, hairdresserId, salonServiceId: serviceId, startAt: slot, status: "Booked", notes };
+    const request: CreateAppointmentRequest = { customerId, hairdresserId, salonServiceId: serviceId, startAt: slot, notes };
     try {
       await appointmentsApi.create(request);
       showToast({ title: "Wizyta została zarezerwowana", message: "Backend uruchomił powiadomienia, kolejkę i potwierdzenie mailowe.", tone: "success" });
@@ -434,11 +434,12 @@ export function HairdresserProfilePage() {
 }
 
 export function AdminDashboardPage() {
-  const customers = useAsyncData(() => customersApi.all(), []);
-  const hairdressers = useAsyncData(() => hairdressersApi.all(), []);
-  const services = useAsyncData(() => servicesApi.all(), []);
-  const appointments = useAsyncData(() => appointmentsApi.all(), []);
+  const customers = useAsyncData(() => adminApi.customers(), []);
+  const hairdressers = useAsyncData(() => adminApi.hairdressers(), []);
+  const services = useAsyncData(() => adminApi.services(), []);
+  const appointments = useAsyncData(() => adminApi.appointments(), []);
   const { navigate } = useRouter();
+  const { showToast } = useToast();
   return (
     <>
       <PageHeader kicker="Panel" title="Centrum zarządzania" subtitle="Statystyki salonu, ostatnie rezerwacje i szybki dostęp do najważniejszych sekcji." image={images.salon} />
@@ -453,6 +454,7 @@ export function AdminDashboardPage() {
         <Button label="Dodaj fryzjera" onPress={() => navigate("/admin/hairdressers")} />
         <Button label="Dodaj zdjęcie" onPress={() => navigate("/admin/gallery")} />
         <Button label="Zarządzaj rolami" onPress={() => navigate("/admin/users")} />
+        <Button label="Test SignalR" variant="ghost" onPress={() => notificationsApi.signalrTest().then(() => showToast({ title: "Test SignalR wysłany", tone: "success" })).catch((err) => showToast({ title: "Test SignalR nieudany", message: getErrorMessage(err), tone: "error" }))} />
       </View>
       <VisitsView title="Ostatnie rezerwacje" appointments={(appointments.data ?? []).slice(0, 6)} loading={appointments.loading} error={appointments.error} />
     </>
@@ -483,29 +485,32 @@ export function AdminUsersPage() {
 }
 
 export function AdminCustomersPage() {
-  const data = useAsyncData(() => customersApi.all(), []);
+  const data = useAsyncData(() => adminApi.customers(), []);
   return <CustomersCrud data={data} />;
 }
 
 export function AdminHairdressersPage() {
-  const data = useAsyncData(() => hairdressersApi.all(), []);
+  const data = useAsyncData(() => adminApi.hairdressers(), []);
   return <HairdressersCrud data={data} />;
 }
 
 export function AdminServicesPage() {
-  const data = useAsyncData(() => servicesApi.all(), []);
+  const data = useAsyncData(() => adminApi.services(), []);
   return <ServicesCrud data={data} />;
 }
 
 export function AdminAppointmentsPage() {
-  const data = useAsyncData(() => appointmentsApi.all(), []);
+  const data = useAsyncData(() => adminApi.appointments(), []);
   return <VisitsView title="Wszystkie wizyty" appointments={data.data ?? []} loading={data.loading} error={data.error} adminRefresh={data.refresh} />;
 }
 
 export function AdminGalleryPage() {
-  const data = useAsyncData(() => galleryApi.all(), []);
+  const data = useAsyncData(() => adminApi.salonPhotos(), []);
   const { showToast } = useToast();
   const [caption, setCaption] = useState("");
+  const [selectedPhotoId, setSelectedPhotoId] = useState("");
+  const [editCaption, setEditCaption] = useState("");
+  const photos = data.data ?? [];
   const upload = async () => {
     const picked = await DocumentPicker.getDocumentAsync({ type: ["image/jpeg", "image/png", "image/webp"] });
     if (!picked.canceled) {
@@ -515,11 +520,32 @@ export function AdminGalleryPage() {
       data.refresh();
     }
   };
+  const selectPhoto = (id: string) => {
+    const photo = photos.find((item) => item.id === id);
+    setSelectedPhotoId(id);
+    setEditCaption(photo?.caption ?? "");
+  };
+  const updateCaption = async () => {
+    if (!selectedPhotoId) {
+      showToast({ title: "Wybierz zdjęcie", message: "Najpierw wskaż zdjęcie, którego podpis chcesz zmienić.", tone: "error" });
+      return;
+    }
+    await galleryApi.update(selectedPhotoId, { caption: editCaption });
+    showToast({ title: "Podpis zdjęcia zapisany", tone: "success" });
+    data.refresh();
+  };
   return (
     <>
       <PageHeader kicker="Admin" title="Galeria salonu" subtitle="Dodawaj zdjęcia salonu, porządkuj opisy i usuwaj materiały, które nie powinny być już widoczne w aplikacji." image={images.salon} />
       <Card><Field label="Podpis zdjęcia" value={caption} onChangeText={setCaption} /><Button label="Upload zdjęcia" icon={<Upload size={17} color={colors.ink} />} onPress={() => upload().catch((err) => showToast({ title: "Upload nieudany", message: getErrorMessage(err), tone: "error" }))} /></Card>
-      <GalleryGrid photos={data.data ?? []} onDelete={(id) => galleryApi.remove(id).then(data.refresh)} />
+      <StateView loading={data.loading} error={data.error} empty={photos.length === 0}>
+        <Card>
+          <SelectRail label="Zdjęcie do edycji" value={selectedPhotoId} options={photos.map((photo) => ({ label: photo.caption || photo.fileName, value: photo.id }))} onChange={selectPhoto} />
+          <Field label="Nowy podpis" value={editCaption} onChangeText={setEditCaption} />
+          <Button label="Zapisz podpis" onPress={() => updateCaption().catch((err) => showToast({ title: "Nie zapisano podpisu", message: getErrorMessage(err), tone: "error" }))} />
+        </Card>
+        <GalleryGrid photos={photos} onDelete={(id) => galleryApi.remove(id).then(data.refresh)} />
+      </StateView>
     </>
   );
 }

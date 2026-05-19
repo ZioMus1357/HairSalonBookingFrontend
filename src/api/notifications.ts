@@ -1,5 +1,6 @@
 import { request } from "./client";
 
 export const notificationsApi = {
-  test: () => request<Record<string, unknown>>("/api/Notifications/test", { method: "POST" })
+  test: () => request<Record<string, unknown>>("/api/Notifications/test", { method: "POST" }),
+  signalrTest: () => request<Record<string, unknown>>("/api/Notifications/signalr-test")
 };

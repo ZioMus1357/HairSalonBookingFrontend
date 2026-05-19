@@ -20,6 +20,8 @@ export type Hairdresser = BookingEntity & {
   specialization: string;
   photoUrl?: string | null;
   photoBlobName?: string | null;
+  photoDisplayWidth: number;
+  photoDisplayHeight: number;
   isActive: boolean;
 };
 
@@ -46,6 +48,8 @@ export type SalonPhoto = BookingEntity & {
   blobName: string;
   blobUrl: string;
   caption?: string | null;
+  displayWidth: number;
+  displayHeight: number;
   uploadedAt: string;
 };
 
@@ -79,9 +83,13 @@ export type AppointmentRequest = {
   notes?: string | null;
 };
 
+export type CreateAppointmentRequest = Omit<AppointmentRequest, "status">;
 export type CustomerRequest = Omit<Customer, "id" | "partitionKey">;
-export type HairdresserRequest = Omit<Hairdresser, "id" | "partitionKey" | "photoUrl" | "photoBlobName">;
+export type HairdresserRequest = Omit<Hairdresser, "id" | "partitionKey" | "photoUrl" | "photoBlobName" | "photoDisplayWidth" | "photoDisplayHeight">;
 export type SalonServiceRequest = Omit<SalonService, "id" | "partitionKey">;
+export type SalonPhotoRequest = {
+  caption?: string | null;
+};
 
 export type HairdresserCustomerHistory = {
   customer: Customer;
