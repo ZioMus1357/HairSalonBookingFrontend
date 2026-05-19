@@ -20,6 +20,11 @@ const fallbackGallery = [
 ];
 
 const appointmentStatuses: AppointmentStatus[] = ["Booked", "Confirmed", "Completed", "Cancelled"];
+const shortId = (value?: string | null) => value ? value.slice(0, 8) : "";
+const customerLabel = (customerId?: string | null, customers: Customer[] = []) => {
+  const customer = customers.find((item) => item.id === customerId);
+  return customer ? fullName(customer) : `Klient ${shortId(customerId) || "nieznany"}`;
+};
 const appointmentStatusLabels: Record<AppointmentStatus, string> = {
   Booked: "Nowa",
   Confirmed: "Potwierdzona",
@@ -316,7 +321,6 @@ export function BookingPage() {
   const { showToast } = useToast();
   const services = useAsyncData(() => servicesApi.all(), []);
   const hairdressers = useAsyncData(() => hairdressersApi.all(), []);
-  const customers = useAsyncData(() => customersApi.all(), []);
   const [step, setStep] = useState(1);
   const [serviceId, setServiceId] = useState(query.get("serviceId") ?? "");
   const [hairdresserId, setHairdresserId] = useState(query.get("hairdresserId") ?? "");
@@ -326,7 +330,7 @@ export function BookingPage() {
   const selectedService = services.data?.find((item) => item.id === serviceId);
   const selectedHairdresser = hairdressers.data?.find((item) => item.id === hairdresserId);
   const slots = useAsyncData(() => (hairdresserId ? hairdressersApi.availability(hairdresserId, day) : Promise.resolve([])), [hairdresserId, day]);
-  const customerId = auth.user?.customerId ?? customers.data?.[0]?.id ?? "";
+  const customerId = auth.user?.customerId ?? "";
   const availableSlots = (slots.data ?? []).filter((item) => {
     if (!selectedService) return true;
     const start = new Date(item).getTime();
@@ -341,7 +345,7 @@ export function BookingPage() {
 
   const create = async () => {
     if (!serviceId || !hairdresserId || !slot || !customerId) {
-      showToast({ title: "Uzupełnij wszystkie kroki", tone: "error" });
+      showToast({ title: "Uzupełnij wszystkie kroki", message: customerId ? undefined : "Najpierw uzupełnij profil klienta po pierwszym logowaniu.", tone: "error" });
       return;
     }
     const request: CreateAppointmentRequest = { customerId, hairdresserId, salonServiceId: serviceId, startAt: slot, notes };
@@ -411,7 +415,6 @@ export function ProfilePage() {
 
 export function HairdresserDashboardPage() {
   const appointments = useAsyncData(() => hairdressersApi.myAppointments(), []);
-  const customers = useAsyncData(() => customersApi.all(), []);
   const rows = appointments.data ?? [];
   const now = Date.now();
   const completed = rows.filter((item) => item.status === "Completed").length;
@@ -427,7 +430,7 @@ export function HairdresserDashboardPage() {
   }, {});
   const topCustomerCount = Math.max(0, ...Object.values(topCustomer));
   const topCustomerId = Object.entries(topCustomer).sort((a, b) => b[1] - a[1])[0]?.[0];
-  const topCustomerName = fullName((customers.data ?? []).find((item) => item.id === topCustomerId));
+  const topCustomerName = customerLabel(topCustomerId);
   const completionRate = rows.length ? Math.round((completed / rows.length) * 100) : 0;
   const nextAppointment = [...rows]
     .filter((item) => item.status !== "Cancelled" && item.status !== "Completed" && new Date(item.startAt).getTime() >= now)
@@ -436,7 +439,7 @@ export function HairdresserDashboardPage() {
   return (
     <>
       <PageHeader kicker="Fryzjer" title="Panel fryzjera" subtitle="Najbliższe wizyty, powiadomienia i szybki podgląd pracy na dziś." image={images.barber} />
-      <StateView loading={appointments.loading || customers.loading} error={appointments.error || customers.error} empty={false}>
+      <StateView loading={appointments.loading} error={appointments.error} empty={false}>
         <View style={screenStyles.grid}>
           <Metric title="Wykonane usługi" value={completed} icon={<Check color={colors.gold} />} />
           <Metric title="Zaplanowane wizyty" value={planned} icon={<CalendarDays color={colors.gold} />} />
@@ -466,7 +469,6 @@ export function HairdresserDashboardPage() {
 
 export function HairdresserAppointmentsPage() {
   const appointments = useAsyncData(() => hairdressersApi.myAppointments(), []);
-  const customers = useAsyncData(() => customersApi.all(), []);
   const { showToast } = useToast();
   const [statusFilter, setStatusFilter] = useState("all");
   const [customerFilter, setCustomerFilter] = useState("all");
@@ -482,6 +484,10 @@ export function HairdresserAppointmentsPage() {
       return matchesStatus && matchesCustomer && matchesFrom && matchesTo;
     });
   }, [appointments.data, customerFilter, dateFrom, dateTo, statusFilter]);
+  const customerOptions = useMemo(() => {
+    const ids = Array.from(new Set((appointments.data ?? []).map((appointment) => appointment.customerId).filter(Boolean)));
+    return ids.map((id) => ({ label: customerLabel(id), value: id }));
+  }, [appointments.data]);
   const changeStatus = (appointment: Appointment, status: AppointmentStatus) =>
     appointmentsApi.update(appointment.id, appointmentUpdateBody(appointment, status))
       .then(() => {
@@ -495,25 +501,49 @@ export function HairdresserAppointmentsPage() {
       <PageHeader kicker="Wizyty" title="Wizyty fryzjera" subtitle="Filtruj listę po dacie, kliencie i statusie, a potem aktualizuj przebieg wizyty jednym kliknięciem." image={images.barber} />
       <Card>
         <SelectRail label="Status" value={statusFilter} options={[{ label: "Wszystkie", value: "all" }, ...appointmentStatuses.map((status) => ({ label: appointmentStatusLabels[status], value: status }))]} onChange={setStatusFilter} />
-        <SelectRail label="Klient" value={customerFilter} options={[{ label: "Wszyscy", value: "all" }, ...(customers.data ?? []).map((customer) => ({ label: fullName(customer), value: customer.id }))]} onChange={setCustomerFilter} />
+        <SelectRail label="Klient" value={customerFilter} options={[{ label: "Wszyscy", value: "all" }, ...customerOptions]} onChange={setCustomerFilter} />
         <View style={screenStyles.filterDates}>
           <Field label="Od daty" value={dateFrom} onChangeText={setDateFrom} placeholder="YYYY-MM-DD" />
           <Field label="Do daty" value={dateTo} onChangeText={setDateTo} placeholder="YYYY-MM-DD" />
         </View>
       </Card>
-      <VisitsView title="Lista wizyt" appointments={filteredAppointments} loading={appointments.loading || customers.loading} error={appointments.error || customers.error} showHeader={false} onStatusChange={changeStatus} />
+      <VisitsView title="Lista wizyt" appointments={filteredAppointments} loading={appointments.loading} error={appointments.error} showHeader={false} onStatusChange={changeStatus} />
     </>
   );
 }
 
 export function HairdresserCustomersPage() {
-  const customers = useAsyncData(() => customersApi.all(), []);
+  const appointments = useAsyncData(() => hairdressersApi.myAppointments(), []);
   const { showToast } = useToast();
+  const rows = useMemo(() => {
+    const grouped = new Map<string, Appointment[]>();
+    (appointments.data ?? []).forEach((appointment) => {
+      grouped.set(appointment.customerId, [...(grouped.get(appointment.customerId) ?? []), appointment]);
+    });
+
+    return Array.from(grouped.entries()).map(([customerId, visits]) => {
+      const sorted = [...visits].sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime());
+      return {
+        id: customerId,
+        customerId,
+        appointmentCount: visits.length,
+        completedCount: visits.filter((item) => item.status === "Completed").length,
+        upcomingCount: visits.filter((item) => item.status !== "Completed" && item.status !== "Cancelled" && new Date(item.startAt).getTime() >= Date.now()).length,
+        lastVisit: sorted[0]?.startAt
+      };
+    });
+  }, [appointments.data]);
   return (
     <>
       <PageHeader kicker="Fryzjer" title="Historia klientów" subtitle="Lista klientów oraz wizyt powiązanych z Twoim profilem fryzjera." image={images.stylist} />
-      <StateView loading={customers.loading} error={customers.error} empty={(customers.data ?? []).length === 0}>
-        <DataTable items={customers.data ?? []} columns={[{ title: "Klient", render: fullName }, { title: "Email", render: (item) => item.email }]} actions={(item) => <Button label="Historia" variant="ghost" onPress={() => hairdressersApi.customerHistory(item.id).then(() => showToast({ title: "Historia klienta pobrana", tone: "success" })).catch((err) => showToast({ title: "Brak dostępu do historii", message: getErrorMessage(err), tone: "error" }))} />} />
+      <StateView loading={appointments.loading} error={appointments.error} empty={rows.length === 0}>
+        <DataTable items={rows} columns={[
+          { title: "Klient", render: (item) => customerLabel(item.customerId) },
+          { title: "Wizyty", render: (item) => String(item.appointmentCount) },
+          { title: "Zakończone", render: (item) => String(item.completedCount) },
+          { title: "Zaplanowane", render: (item) => String(item.upcomingCount) },
+          { title: "Ostatnia wizyta", render: (item) => item.lastVisit ? toLocalDateTime(item.lastVisit) : "Brak" }
+        ]} actions={(item) => <Button label="Historia" variant="ghost" onPress={() => hairdressersApi.customerHistory(item.customerId).then(() => showToast({ title: "Historia klienta pobrana", tone: "success" })).catch((err) => showToast({ title: "Brak dostępu do historii", message: getErrorMessage(err), tone: "error" }))} />} />
       </StateView>
     </>
   );
@@ -614,15 +644,15 @@ export function AdminDashboardPage() {
         <Button label="Zarządzaj rolami" onPress={() => navigate("/admin/users")} />
         <Button label="Test SignalR" variant="ghost" onPress={() => notificationsApi.signalrTest().then(() => showToast({ title: "Test SignalR wysłany", tone: "success" })).catch((err) => showToast({ title: "Test SignalR nieudany", message: getErrorMessage(err), tone: "error" }))} />
       </View>
-      <VisitsView title="Ostatnie rezerwacje" appointments={(appointments.data ?? []).slice(0, 6)} loading={appointments.loading} error={appointments.error} />
+      <VisitsView title="Ostatnie rezerwacje" appointments={(appointments.data ?? []).slice(0, 6)} loading={appointments.loading || customers.loading} error={appointments.error || customers.error} customers={customers.data ?? []} />
     </>
   );
 }
 
 export function AdminUsersPage() {
   const data = useAsyncData(() => adminApi.users(), []);
-  const customers = useAsyncData(() => customersApi.all(), []);
-  const hairdressers = useAsyncData(() => hairdressersApi.all(), []);
+  const customers = useAsyncData(() => adminApi.customers(), []);
+  const hairdressers = useAsyncData(() => adminApi.hairdressers(), []);
   const { showToast } = useToast();
   const [role, setRole] = useState<UserRole>("Customer");
   const [customerId, setCustomerId] = useState("");
@@ -659,6 +689,7 @@ export function AdminServicesPage() {
 
 export function AdminAppointmentsPage() {
   const data = useAsyncData(() => adminApi.appointments(), []);
+  const customers = useAsyncData(() => adminApi.customers(), []);
   const { showToast } = useToast();
   const changeStatus = (appointment: Appointment, status: AppointmentStatus) =>
     appointmentsApi.update(appointment.id, appointmentUpdateBody(appointment, status))
@@ -668,7 +699,7 @@ export function AdminAppointmentsPage() {
       })
       .catch((err) => showToast({ title: "Nie zmieniono statusu", message: getErrorMessage(err), tone: "error" }));
 
-  return <VisitsView title="Wszystkie wizyty" appointments={data.data ?? []} loading={data.loading} error={data.error} adminRefresh={data.refresh} onStatusChange={changeStatus} />;
+  return <VisitsView title="Wszystkie wizyty" appointments={data.data ?? []} loading={data.loading || customers.loading} error={data.error || customers.error} adminRefresh={data.refresh} onStatusChange={changeStatus} customers={customers.data ?? []} />;
 }
 
 export function AdminGalleryPage() {
@@ -770,18 +801,17 @@ function appointmentUpdateBody(appointment: Appointment, status: AppointmentStat
   };
 }
 
-function VisitsView({ title, appointments, loading, error, adminRefresh, showHeader = true, onStatusChange }: { title: string; appointments: Appointment[]; loading?: boolean; error?: string; adminRefresh?: () => void; showHeader?: boolean; onStatusChange?: (appointment: Appointment, status: AppointmentStatus) => void }) {
+function VisitsView({ title, appointments, loading, error, adminRefresh, showHeader = true, onStatusChange, customers = [] }: { title: string; appointments: Appointment[]; loading?: boolean; error?: string; adminRefresh?: () => void; showHeader?: boolean; onStatusChange?: (appointment: Appointment, status: AppointmentStatus) => void; customers?: Customer[] }) {
   const services = useAsyncData(() => servicesApi.all(), []);
   const hairdressers = useAsyncData(() => hairdressersApi.all(), []);
-  const customers = useAsyncData(() => customersApi.all(), []);
   const { showToast } = useToast();
   const table = (
-    <StateView loading={loading || services.loading || hairdressers.loading || customers.loading} error={error} empty={appointments.length === 0}>
+    <StateView loading={loading || services.loading || hairdressers.loading} error={error} empty={appointments.length === 0}>
       <DataTable items={appointments} columns={[
         { title: "Termin", render: (item) => toLocalDateTime(item.startAt) },
-        { title: "Usługa", render: (item) => appointmentLabel(item, services.data ?? [], hairdressers.data ?? [], customers.data ?? []).service },
-        { title: "Fryzjer", render: (item) => appointmentLabel(item, services.data ?? [], hairdressers.data ?? [], customers.data ?? []).hairdresser },
-        { title: "Klient", render: (item) => appointmentLabel(item, services.data ?? [], hairdressers.data ?? [], customers.data ?? []).customer },
+        { title: "Usługa", render: (item) => appointmentLabel(item, services.data ?? [], hairdressers.data ?? [], customers).service },
+        { title: "Fryzjer", render: (item) => appointmentLabel(item, services.data ?? [], hairdressers.data ?? [], customers).hairdresser },
+        { title: "Klient", render: (item) => customerLabel(item.customerId, customers) },
         { title: "Status", render: (item) => appointmentStatusLabels[item.status] ?? item.status }
       ]} actions={(item) => {
         const statusButtons = onStatusChange ? (
