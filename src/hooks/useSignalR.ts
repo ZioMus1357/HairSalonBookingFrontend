@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { adminApi } from "../api";
 import { createBookingHub } from "../api/signalr";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
@@ -15,8 +14,6 @@ export function useSignalR() {
   const { showToast } = useToast();
   const auth = useAuth();
   const connection = useRef<ReturnType<typeof createBookingHub> | null>(null);
-  const notifiedAppointmentIds = useRef<Set<string>>(new Set());
-  const polledAdminAppointmentIds = useRef<Set<string> | null>(null);
   const [status, setStatus] = useState<"online" | "offline" | "connecting">("connecting");
 
   useEffect(() => {
@@ -29,14 +26,7 @@ export function useSignalR() {
     let started = false;
     const hub = createBookingHub();
 
-    const markAppointment = (payload?: BookingNotificationPayload) => {
-      if (payload?.appointmentId) {
-        notifiedAppointmentIds.current.add(payload.appointmentId);
-      }
-    };
-
     const notifyAppointmentBooked = (payload?: BookingNotificationPayload) => {
-      markAppointment(payload);
       const serviceName = payload?.serviceName ?? payload?.salonServiceName;
       showToast({
         title: "Nowa rezerwacja",
@@ -46,7 +36,6 @@ export function useSignalR() {
     };
 
     const notifyHairdresserAppointmentBooked = (payload?: BookingNotificationPayload) => {
-      markAppointment(payload);
       if (auth.role === "Hairdresser" || auth.role === "Admin") {
         const serviceName = payload?.serviceName ?? payload?.salonServiceName;
         showToast({
@@ -99,49 +88,6 @@ export function useSignalR() {
       }
     };
   }, [auth.loading, auth.role, auth.user?.hairdresserId, showToast]);
-
-  useEffect(() => {
-    if (auth.loading || auth.role !== "Admin") {
-      polledAdminAppointmentIds.current = null;
-      return;
-    }
-
-    let disposed = false;
-    const poll = async () => {
-      try {
-        const appointments = await adminApi.appointments();
-        const currentIds = new Set(appointments.map((appointment) => appointment.id).filter(Boolean));
-        const previousIds = polledAdminAppointmentIds.current;
-
-        if (previousIds) {
-          const newAppointments = appointments.filter((appointment) => appointment.id && !previousIds.has(appointment.id) && !notifiedAppointmentIds.current.has(appointment.id));
-          newAppointments.forEach((appointment) => {
-            if (appointment.id) {
-              notifiedAppointmentIds.current.add(appointment.id);
-            }
-          });
-          if (!disposed && newAppointments.length > 0) {
-            showToast({
-              title: newAppointments.length === 1 ? "Nowa rezerwacja" : "Nowe rezerwacje",
-              message: newAppointments.length === 1 ? "Pojawiła się nowa wizyta w terminarzu." : `Pojawiły się nowe wizyty: ${newAppointments.length}.`,
-              tone: "success",
-            });
-          }
-        }
-
-        polledAdminAppointmentIds.current = currentIds;
-      } catch {
-        return;
-      }
-    };
-
-    poll();
-    const interval = setInterval(poll, 12000);
-    return () => {
-      disposed = true;
-      clearInterval(interval);
-    };
-  }, [auth.loading, auth.role, showToast]);
 
   return { status, connection: connection.current };
 }
