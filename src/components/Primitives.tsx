@@ -84,7 +84,7 @@ export function StateView({ loading, error, empty, children }: { loading?: boole
     return (
       <View style={styles.state}>
         <Text style={styles.stateTitle}>Brak danych</Text>
-        <Text style={styles.stateText}>Dodaj pierwszy rekord albo odśwież połączenie z backendem.</Text>
+        <Text style={styles.stateText}>Dodaj pierwszy rekord albo odśwież dane.</Text>
       </View>
     );
   }

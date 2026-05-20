@@ -16,7 +16,7 @@ export const fullName = (person?: Pick<Customer | Hairdresser, "firstName" | "la
 };
 
 export const appointmentLabel = (appointment: Appointment, services: SalonService[], hairdressers: Hairdresser[], customers: Customer[]) => {
-  const service = services.find((item) => item.id === appointment.salonServiceId)?.name ?? appointment.salonServiceId;
+  const service = services.find((item) => item.id === appointment.salonServiceId)?.name ?? "Usługa";
   const hairdresser = fullName(hairdressers.find((item) => item.id === appointment.hairdresserId));
   const customer = fullName(customers.find((item) => item.id === appointment.customerId));
   return { service, hairdresser, customer };

@@ -20,10 +20,9 @@ const fallbackGallery = [
 ];
 
 const appointmentStatuses: AppointmentStatus[] = ["Booked", "Confirmed", "Completed", "Cancelled"];
-const shortId = (value?: string | null) => value ? value.slice(0, 8) : "";
 const customerLabel = (customerId?: string | null, customers: Customer[] = []) => {
   const customer = customers.find((item) => item.id === customerId);
-  return customer ? fullName(customer) : `Klient ${shortId(customerId) || "nieznany"}`;
+  return customer ? fullName(customer) : "Klient";
 };
 const appointmentStatusLabels: Record<AppointmentStatus, string> = {
   Booked: "Nowa",
@@ -255,7 +254,7 @@ export function LoginPage() {
       <Card>
         {authRunsLocally ? (
           <View style={screenStyles.authNotice}>
-            <Text style={screenStyles.authNoticeText}>Logowanie Google/GitHub działa tylko na Azure App Service. Ustaw EXPO_PUBLIC_API_BASE_URL oraz EXPO_PUBLIC_AUTH_BASE_URL na adres App Service.</Text>
+            <Text style={screenStyles.authNoticeText}>Logowanie Google/GitHub działa przez opublikowaną usługę. Jeśli testujesz lokalnie, upewnij się, że adres logowania wskazuje wdrożoną aplikację.</Text>
           </View>
         ) : null}
         <View style={screenStyles.providerLinks}>
@@ -340,8 +339,18 @@ export function BookingPage() {
   const [day, setDay] = useState(dateOnly());
   const [slot, setSlot] = useState(query.get("startAt") ?? "");
   const [notes, setNotes] = useState("");
+  const [serviceSort, setServiceSort] = useState("recommended");
+  const [shortServicesOnly, setShortServicesOnly] = useState(false);
   const selectedService = services.data?.find((item) => item.id === serviceId);
   const selectedHairdresser = hairdressers.data?.find((item) => item.id === hairdresserId);
+  const customerName = auth.user?.displayName || auth.user?.email || "Twój profil";
+  const bookingServices = useMemo(() => {
+    const rows = [...(services.data ?? [])].filter((item) => item.isAvailable && (!shortServicesOnly || item.durationMinutes <= 60));
+    if (serviceSort === "priceAsc") rows.sort((a, b) => a.price - b.price);
+    if (serviceSort === "priceDesc") rows.sort((a, b) => b.price - a.price);
+    if (serviceSort === "duration") rows.sort((a, b) => a.durationMinutes - b.durationMinutes);
+    return rows;
+  }, [serviceSort, services.data, shortServicesOnly]);
   const slots = useAsyncData(() => (hairdresserId ? hairdressersApi.availability(hairdresserId, day) : Promise.resolve([])), [hairdresserId, day]);
   const customerId = auth.user?.customerId ?? "";
   const availableSlots = (slots.data ?? []).filter((item) => {
@@ -364,7 +373,7 @@ export function BookingPage() {
     const request: CreateAppointmentRequest = { customerId, hairdresserId, salonServiceId: serviceId, startAt: slot, notes };
     try {
       await appointmentsApi.create(request);
-      showToast({ title: "Wizyta została zarezerwowana", message: "Backend uruchomił powiadomienia, kolejkę i potwierdzenie mailowe.", tone: "success" });
+      showToast({ title: "Wizyta została zarezerwowana", message: "Wysłaliśmy powiadomienie i zapisaliśmy wizytę w Twoim profilu.", tone: "success" });
       navigate("/my-visits");
     } catch (err) {
       showToast({ title: "Rezerwacja odrzucona", message: getErrorMessage(err), tone: "error" });
@@ -375,11 +384,11 @@ export function BookingPage() {
     <>
       <PageHeader kicker="Rezerwacja" title="Umów wizytę" subtitle="Wybierz usługę, stylistę i dogodny termin. Po potwierdzeniu zapiszemy wizytę w Twoim profilu klienta." image={images.hero} />
       <View style={screenStyles.stepper}>{[1, 2, 3, 4, 5].map((n) => <Chip key={n} label={`Krok ${n}`} active={step === n} onPress={() => setStep(n)} />)}</View>
-      {step === 1 ? <ServiceGrid services={(services.data ?? []).filter((item) => item.isAvailable)} loading={services.loading} error={services.error} selectedId={serviceId} onSelect={(id) => { setServiceId(id); setStep(2); }} /> : null}
+      {step === 1 ? <><View style={screenStyles.filters}><SelectRail label="Sortowanie usług" value={serviceSort} options={[{ label: "Polecane", value: "recommended" }, { label: "Cena rosnąco", value: "priceAsc" }, { label: "Cena malejąco", value: "priceDesc" }, { label: "Czas trwania", value: "duration" }]} onChange={setServiceSort} /><Chip label="Do 60 minut" active={shortServicesOnly} onPress={() => setShortServicesOnly((value) => !value)} /></View><ServiceGrid services={bookingServices} loading={services.loading} error={services.error} selectedId={serviceId} onSelect={(id) => { setServiceId(id); setStep(2); }} /></> : null}
       {step === 2 ? <HairdresserGrid hairdressers={(hairdressers.data ?? []).filter((item) => item.isActive)} loading={hairdressers.loading} error={hairdressers.error} selectedId={hairdresserId} onProfile={() => undefined} onBook={(id) => { setHairdresserId(id); setStep(3); }} /> : null}
-      {step === 3 ? <Card><SelectRail label="Wybierz datę" value={day} options={[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => ({ label: addDays(n), value: addDays(n) }))} onChange={(value) => { setDay(value); setStep(4); }} /></Card> : null}
+      {step === 3 ? <Card><Text style={screenStyles.cardTitle}>Wybierz datę</Text><DatePickerField label="Data wizyty" value={day} onChange={setDay} /><SelectRail label="Szybki wybór" value={day} options={[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => ({ label: addDays(n), value: addDays(n) }))} onChange={setDay} /><Button label="Pokaż dostępne godziny" onPress={() => setStep(4)} /></Card> : null}
       {step === 4 ? <Card><Text style={screenStyles.cardTitle}>Wybierz godzinę</Text><StateView loading={slots.loading} error={slots.error} empty={availableSlots.length === 0}><View style={screenStyles.slotWrap}>{availableSlots.map((item) => <Chip key={item} label={new Date(item).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })} active={slot === item} onPress={() => { setSlot(item); setStep(5); }} />)}</View></StateView></Card> : null}
-      {step === 5 ? <Card><Text style={screenStyles.cardTitle}>Podsumowanie</Text><Summary rows={[["Usługa", selectedService ? `${selectedService.name} · ${money(selectedService.price)}` : "Brak"], ["Fryzjer", fullName(selectedHairdresser)], ["Termin", slot ? toLocalDateTime(slot) : "Brak"], ["Czas", selectedService ? `${selectedService.durationMinutes} min` : "Brak"], ["Klient", customerId]]} /><Field label="Notatka" value={notes} onChangeText={setNotes} multiline /><Button label="Potwierdź rezerwację" icon={<Check size={17} color={colors.ink} />} onPress={create} /></Card> : null}
+      {step === 5 ? <Card><Text style={screenStyles.cardTitle}>Podsumowanie</Text><Summary rows={[["Usługa", selectedService ? `${selectedService.name} · ${money(selectedService.price)}` : "Brak"], ["Fryzjer", fullName(selectedHairdresser)], ["Termin", slot ? toLocalDateTime(slot) : "Brak"], ["Czas", selectedService ? `${selectedService.durationMinutes} min` : "Brak"], ["Klient", customerName]]} /><Field label="Notatka" value={notes} onChangeText={setNotes} multiline /><Button label="Potwierdź rezerwację" icon={<Check size={17} color={colors.ink} />} onPress={create} /></Card> : null}
     </>
   );
 }
@@ -389,7 +398,7 @@ export function MyVisitsPage() {
   const reviews = useAsyncData(() => reviewsApi.mine(), []);
   return (
     <>
-      <VisitsView title="Moje wizyty" appointments={data.data ?? []} loading={data.loading} error={data.error} />
+      <VisitsView title="Moje wizyty" appointments={data.data ?? []} loading={data.loading} error={data.error} showCustomer={false} />
       <CustomerReviewPanel appointments={data.data ?? []} reviews={reviews.data ?? []} appointmentsLoading={data.loading} reviewsLoading={reviews.loading} error={reviews.error} onSaved={reviews.refresh} />
     </>
   );
@@ -505,7 +514,7 @@ export function HairdresserAppointmentsPage() {
   }, [appointments.data, customerFilter, dateFrom, dateTo, statusFilter]);
   const customerOptions = useMemo(() => {
     const ids = Array.from(new Set((appointments.data ?? []).map((appointment) => appointment.customerId).filter(Boolean)));
-    return ids.map((id) => ({ label: customerLabel(id), value: id }));
+    return ids.map((id, index) => ({ label: `Klient ${index + 1}`, value: id }));
   }, [appointments.data]);
   const changeStatus = (appointment: Appointment, status: AppointmentStatus) =>
     appointmentsApi.update(appointment.id, appointmentUpdateBody(appointment, status))
@@ -609,8 +618,7 @@ export function HairdresserProfilePage() {
               <Summary rows={[
                 ["Imię i nazwisko", data.data ? fullName(data.data) : "Brak"],
                 ["Specjalizacja", data.data?.specialization || "Brak"],
-                ["Status", data.data?.isActive ? "Aktywny" : "Nieaktywny"],
-                ["Id profilu", data.data?.id ?? "Brak"]
+                ["Status", data.data?.isActive ? "Aktywny" : "Nieaktywny"]
               ]} />
               <Text style={screenStyles.muted}>Jeżeli dane są nieaktualne, poproś administratora o edycję profilu w panelu administracyjnym.</Text>
             </Card>
@@ -685,7 +693,7 @@ export function AdminUsersPage() {
     <>
       <PageHeader kicker="Admin" title="Użytkownicy i role" subtitle="Zarządzaj dostępem do aplikacji i przypisuj konta do klientów, fryzjerów lub administratorów." image={images.hero} />
       <StateView loading={data.loading} error={data.error} empty={(data.data ?? []).length === 0}>
-        <DataTable items={data.data ?? []} columns={[{ title: "Użytkownik", render: (u) => u.displayName || u.id }, { title: "Email", render: (u) => u.email }, { title: "Rola", render: (u) => u.role }]} actions={(user) => <View style={screenStyles.tableActionStack}><Button label="Edytuj" variant="ghost" onPress={() => selectUser(user)} /><Button label="Usuń" variant="ghost" disabled onPress={() => undefined} /></View>} />
+        <DataTable items={data.data ?? []} columns={[{ title: "Użytkownik", render: (u) => u.displayName || u.email || "Użytkownik" }, { title: "Email", render: (u) => u.email }, { title: "Rola", render: (u) => u.role }]} actions={(user) => <View style={screenStyles.tableActionStack}><Button label="Edytuj" variant="ghost" onPress={() => selectUser(user)} /><Button label="Usuń" variant="ghost" disabled onPress={() => undefined} /></View>} />
       </StateView>
       {selectedUser ? (
         <Card>
@@ -695,7 +703,7 @@ export function AdminUsersPage() {
           {role === "Hairdresser" ? <SelectDropdown label="Powiązany fryzjer" value={hairdresserId} options={[{ label: "Brak powiązania", value: "" }, ...(hairdressers.data ?? []).map((item) => ({ label: `${fullName(item)} · ${item.specialization || "profil"}`, value: item.id }))]} onChange={setHairdresserId} /> : null}
           {role === "Admin" ? <Text style={screenStyles.muted}>Administrator nie wymaga powiązania z klientem ani fryzjerem.</Text> : null}
           <View style={screenStyles.actions}><Button label="Zapisz zmiany" onPress={save} /><Button label="Anuluj" variant="ghost" onPress={() => setSelectedUser(null)} /></View>
-          <Text style={screenStyles.muted}>Usuwanie użytkowników nie jest dostępne w aktualnym API backendu. Swagger udostępnia tylko listę użytkowników oraz zmianę roli.</Text>
+          <Text style={screenStyles.muted}>Usuwanie użytkowników nie jest dostępne w aktualnej konfiguracji. Możesz zmieniać role i powiązania kont.</Text>
         </Card>
       ) : null}
     </>
@@ -748,7 +756,7 @@ export function AdminReviewsPage() {
       <PageHeader kicker="Admin" title="Moderacja opinii" subtitle="Ukrywaj, przywracaj albo usuwaj recenzje klientów. Publicznie widoczne są tylko opinie z aktywną widocznością." image={images.hairTwo} />
       <StateView loading={data.loading} error={data.error} empty={(data.data ?? []).length === 0}>
         <DataTable items={data.data ?? []} columns={[
-          { title: "Autor", render: (item) => item.displayName || item.customerId || "Klient" },
+          { title: "Autor", render: (item) => item.displayName || "Klient" },
           { title: "Ocena", render: (item) => stars(item.rating) },
           { title: "Treść", render: (item) => item.content || "Brak treści" },
           { title: "Widoczność", render: (item) => item.isVisible ? "Widoczna" : "Ukryta" },
@@ -878,13 +886,14 @@ function ReviewsGrid({ reviews, loading, error }: { reviews: Review[]; loading?:
 
 function CustomerReviewPanel({ appointments, reviews, appointmentsLoading, reviewsLoading, error, onSaved }: { appointments: Appointment[]; reviews: Review[]; appointmentsLoading?: boolean; reviewsLoading?: boolean; error?: string; onSaved: () => void }) {
   const { showToast } = useToast();
+  const services = useAsyncData(() => servicesApi.all(), []);
   const [appointmentId, setAppointmentId] = useState("");
   const [rating, setRating] = useState("5");
   const [content, setContent] = useState("");
   const completedAppointments = appointments.filter((appointment) => appointment.status === "Completed");
   const reviewedAppointmentIds = new Set(reviews.map((review) => review.appointmentId).filter(Boolean));
   const appointmentOptions = completedAppointments.map((appointment) => ({
-    label: `${toLocalDateTime(appointment.startAt)} · ${shortId(appointment.id)}`,
+    label: `${toLocalDateTime(appointment.startAt)} · ${services.data?.find((service) => service.id === appointment.salonServiceId)?.name ?? "Wizyta"}`,
     value: appointment.id,
     disabled: reviewedAppointmentIds.has(appointment.id)
   }));
@@ -918,8 +927,8 @@ function CustomerReviewPanel({ appointments, reviews, appointmentsLoading, revie
   return (
     <Card>
       <Text style={screenStyles.cardTitle}>Dodaj opinię po wizycie</Text>
-      <Text style={screenStyles.muted}>Jeśli wybierzesz wizytę, backend sprawdzi, czy należy do Twojego konta i czy ma status zakończony.</Text>
-      <StateView loading={appointmentsLoading || reviewsLoading} error={error} empty={false}>
+      <Text style={screenStyles.muted}>Jeśli wybierzesz wizytę, system połączy opinię z zakończonym terminem z Twojej historii.</Text>
+      <StateView loading={appointmentsLoading || reviewsLoading || services.loading} error={error || services.error} empty={false}>
         <SelectRail label="Powiązana wizyta" value={appointmentId} options={[{ label: "Bez powiązania", value: "" }, ...appointmentOptions]} onChange={setAppointmentId} />
         <SelectRail label="Ocena" value={rating} options={[1, 2, 3, 4, 5].map((value) => ({ label: stars(value), value: String(value) }))} onChange={setRating} />
         <Field label="Treść opinii" value={content} onChangeText={setContent} multiline placeholder="Napisz kilka zdań o wizycie..." />
@@ -1009,13 +1018,13 @@ function CustomerHistoryCard({ history, fallbackAppointments, services }: { hist
     ? history.usedServiceIds
     : Array.from(new Set([...previousAppointments, ...upcomingAppointments].map((appointment) => appointment.salonServiceId).filter(Boolean)));
   const serviceNames = serviceIds
-    .map((id) => services.find((service) => service.id === id)?.name ?? id)
+    .map((id) => services.find((service) => service.id === id)?.name ?? "Usługa")
     .join(", ");
   const customer = history.customer;
   const renderAppointments = (items: Appointment[]) => items.slice(0, 5).map((appointment) => (
     <View key={appointment.id} style={screenStyles.historyVisit}>
       <Text style={screenStyles.historyVisitTitle}>{toLocalDateTime(appointment.startAt)}</Text>
-      <Text style={screenStyles.muted}>{services.find((service) => service.id === appointment.salonServiceId)?.name ?? appointment.salonServiceId} · {appointmentStatusLabels[appointment.status] ?? appointment.status}</Text>
+      <Text style={screenStyles.muted}>{services.find((service) => service.id === appointment.salonServiceId)?.name ?? "Usługa"} · {appointmentStatusLabels[appointment.status] ?? appointment.status}</Text>
     </View>
   ));
 
@@ -1043,17 +1052,19 @@ function CustomerHistoryCard({ history, fallbackAppointments, services }: { hist
   );
 }
 
-function VisitsView({ title, appointments, loading, error, adminRefresh, showHeader = true, onStatusChange, customers = [] }: { title: string; appointments: Appointment[]; loading?: boolean; error?: string; adminRefresh?: () => void; showHeader?: boolean; onStatusChange?: (appointment: Appointment, status: AppointmentStatus) => void; customers?: Customer[] }) {
+function VisitsView({ title, appointments, loading, error, adminRefresh, showHeader = true, onStatusChange, customers = [], showCustomer = true }: { title: string; appointments: Appointment[]; loading?: boolean; error?: string; adminRefresh?: () => void; showHeader?: boolean; onStatusChange?: (appointment: Appointment, status: AppointmentStatus) => void; customers?: Customer[]; showCustomer?: boolean }) {
   const services = useAsyncData(() => servicesApi.all(), []);
   const hairdressers = useAsyncData(() => hairdressersApi.all(), []);
   const { showToast } = useToast();
+  const customerAliases = useMemo(() => new Map(Array.from(new Set(appointments.map((appointment) => appointment.customerId).filter(Boolean))).map((id, index) => [id, `Klient ${index + 1}`])), [appointments]);
+  const customerColumn = showCustomer ? [{ title: "Klient", render: (item: Appointment) => customerLabel(item.customerId, customers) === "Klient" ? customerAliases.get(item.customerId) ?? "Klient" : customerLabel(item.customerId, customers) }] : [];
   const table = (
     <StateView loading={loading || services.loading || hairdressers.loading} error={error} empty={appointments.length === 0}>
       <DataTable items={appointments} columns={[
         { title: "Termin", render: (item) => toLocalDateTime(item.startAt) },
         { title: "Usługa", render: (item) => appointmentLabel(item, services.data ?? [], hairdressers.data ?? [], customers).service },
         { title: "Fryzjer", render: (item) => appointmentLabel(item, services.data ?? [], hairdressers.data ?? [], customers).hairdresser },
-        { title: "Klient", render: (item) => customerLabel(item.customerId, customers) },
+        ...customerColumn,
         { title: "Status", render: (item) => appointmentStatusLabels[item.status] ?? item.status }
       ]} actions={(item) => {
         const statusButtons = onStatusChange ? (
