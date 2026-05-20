@@ -3,6 +3,13 @@ import { createBookingHub } from "../api/signalr";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
 
+type BookingNotificationPayload = {
+  appointmentId?: string;
+  serviceName?: string;
+  salonServiceName?: string;
+  startAt?: string;
+};
+
 export function useSignalR() {
   const { showToast } = useToast();
   const auth = useAuth();
@@ -19,23 +26,36 @@ export function useSignalR() {
     let started = false;
     const hub = createBookingHub();
 
-    hub.on("appointmentBooked", (payload) => {
+    const notifyAppointmentBooked = (payload?: BookingNotificationPayload) => {
+      const serviceName = payload?.serviceName ?? payload?.salonServiceName;
       showToast({
         title: "Nowa rezerwacja",
-        message: payload?.serviceName ? `Zarezerwowano usługę: ${payload.serviceName}.` : "Pojawiła się nowa wizyta w terminarzu.",
+        message: serviceName ? `Zarezerwowano usługę: ${serviceName}.` : "Pojawiła się nowa wizyta w terminarzu.",
         tone: "success",
       });
-    });
+    };
 
-    hub.on("hairdresserAppointmentBooked", () => {
+    const notifyHairdresserAppointmentBooked = (payload?: BookingNotificationPayload) => {
       if (auth.role === "Hairdresser" || auth.role === "Admin") {
-        showToast({ title: "Nowa wizyta u fryzjera", message: "Ktoś zarezerwował termin w Twoim kalendarzu.", tone: "info" });
+        const serviceName = payload?.serviceName ?? payload?.salonServiceName;
+        showToast({
+          title: "Nowa wizyta u fryzjera",
+          message: serviceName ? `Nowa rezerwacja: ${serviceName}.` : "Ktoś zarezerwował termin w kalendarzu.",
+          tone: "info",
+        });
       }
-    });
+    };
 
-    hub.on("testNotification", () => {
-      showToast({ title: "Test SignalR", message: "Powiadomienie testowe dotarło do aplikacji.", tone: "info" });
-    });
+    const notifyTest = () => {
+      showToast({ title: "Test powiadomień", message: "Powiadomienie testowe dotarło do aplikacji.", tone: "info" });
+    };
+
+    hub.on("appointmentBooked", notifyAppointmentBooked);
+    hub.on("AppointmentBooked", notifyAppointmentBooked);
+    hub.on("hairdresserAppointmentBooked", notifyHairdresserAppointmentBooked);
+    hub.on("HairdresserAppointmentBooked", notifyHairdresserAppointmentBooked);
+    hub.on("testNotification", notifyTest);
+    hub.on("TestNotification", notifyTest);
 
     setStatus("connecting");
     hub.start().then(() => {
