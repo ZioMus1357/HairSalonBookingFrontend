@@ -424,7 +424,7 @@ export function ProfilePage() {
       <PageHeader kicker={onboarding ? "Pierwsze logowanie" : "Klient"} title={onboarding ? "Uzupełnij dane do rezerwacji" : "Profil klienta"} subtitle={onboarding ? "Podaj dane kontaktowe, żebyśmy mogli potwierdzić wizytę i przypisać rezerwacje do Twojego profilu." : "Zarządzaj danymi kontaktowymi używanymi przy rezerwacjach i historii wizyt."} image={images.hairOne} />
       <StateView loading={data.loading} error={data.error} empty={!data.data}>
         <Card>
-          <CustomerForm form={form} setForm={setForm} />
+          <CustomerForm form={form} setForm={setForm} showNotes={false} />
           <Button label={onboarding ? "Zapisz i przejdź do rezerwacji" : "Zapisz profil"} icon={<Edit3 size={17} color={colors.ink} />} onPress={save} />
         </Card>
       </StateView>
@@ -862,12 +862,14 @@ function ReviewsGrid({ reviews, loading, error }: { reviews: Review[]; loading?:
     <StateView loading={loading} error={error} empty={reviews.length === 0}>
       <View style={screenStyles.grid}>
         {reviews.map((review) => (
-          <Card key={review.id}>
+          <View key={review.id} style={screenStyles.flexCard}>
+            <Card>
             <Text style={screenStyles.reviewStars}>{stars(review.rating)}</Text>
             <Text style={screenStyles.cardTitle}>{review.displayName || "Klient Maison Noir"}</Text>
             <Text style={screenStyles.muted}>{review.content || "Klient pozostawił ocenę bez dodatkowego komentarza."}</Text>
             <Text style={screenStyles.goldText}>{review.createdAt ? toLocalDateTime(review.createdAt) : "Opinia klienta"}</Text>
-          </Card>
+            </Card>
+          </View>
         ))}
       </View>
     </StateView>
@@ -1118,7 +1120,11 @@ function ServicesCrud({ data }: { data: ReturnType<typeof useAsyncData<SalonServ
   return <><PageHeader kicker="Admin" title="Usługi salonu" subtitle="Dodawaj i aktualizuj ofertę, ceny, czas trwania oraz dostępność usług widocznych dla klientów." image={images.hairTwo} /><Card><Text style={screenStyles.cardTitle}>{editingId ? "Edytuj usługę" : "Dodaj usługę"}</Text><Field label="Nazwa" value={form.name} onChangeText={(name) => setForm({ ...form, name })} /><Field label="Opis" value={form.description} onChangeText={(description) => setForm({ ...form, description })} /><Field label="Czas min" value={form.durationMinutes} onChangeText={(durationMinutes) => setForm({ ...form, durationMinutes })} keyboardType="numeric" /><Field label="Cena" value={form.price} onChangeText={(price) => setForm({ ...form, price })} keyboardType="numeric" /><Chip label="Dostępna" active={form.isAvailable} onPress={() => setForm({ ...form, isAvailable: !form.isAvailable })} /><View style={screenStyles.actions}><Button label={editingId ? "Zapisz usługę" : "Dodaj usługę"} onPress={save} />{editingId ? <Button label="Anuluj" variant="ghost" onPress={reset} /> : null}</View></Card><StateView loading={data.loading} error={data.error} empty={(data.data ?? []).length === 0}><DataTable items={data.data ?? []} columns={[{ title: "Usługa", render: (x) => x.name }, { title: "Cena", render: (x) => money(x.price) }, { title: "Czas", render: (x) => `${x.durationMinutes} min` }, { title: "Status", render: (x) => x.isAvailable ? "Dostępna" : "Niedostępna" }]} actions={(item) => <View style={screenStyles.tableActionStack}><Button label="Edytuj" variant="ghost" onPress={() => edit(item)} /><Button label="Usuń" variant="ghost" onPress={() => confirmDelete(() => servicesApi.remove(item.id).then(data.refresh))} /></View>} /></StateView></>;
 }
 
-function CustomerForm({ form, setForm }: { form: CustomerRequest; setForm: (form: CustomerRequest) => void }) {
+function CustomerForm({ form, setForm, showNotes = true }: { form: CustomerRequest; setForm: (form: CustomerRequest) => void; showNotes?: boolean }) {
+  if (!showNotes) {
+    return <><Field label="Imie" value={form.firstName} onChangeText={(firstName) => setForm({ ...form, firstName })} /><Field label="Nazwisko" value={form.lastName} onChangeText={(lastName) => setForm({ ...form, lastName })} /><Field label="Telefon" value={form.phoneNumber} onChangeText={(phoneNumber) => setForm({ ...form, phoneNumber })} /><Field label="Email" value={form.email} onChangeText={(email) => setForm({ ...form, email })} /></>;
+  }
+
   return <><Field label="Imię" value={form.firstName} onChangeText={(firstName) => setForm({ ...form, firstName })} /><Field label="Nazwisko" value={form.lastName} onChangeText={(lastName) => setForm({ ...form, lastName })} /><Field label="Telefon" value={form.phoneNumber} onChangeText={(phoneNumber) => setForm({ ...form, phoneNumber })} /><Field label="Email" value={form.email} onChangeText={(email) => setForm({ ...form, email })} /><Field label="Notatki" value={form.notes ?? ""} onChangeText={(notes) => setForm({ ...form, notes })} multiline /></>;
 }
 
@@ -1295,7 +1301,9 @@ const screenStyles = StyleSheet.create({
   },
   flexCard: {
     flex: 1,
-    minWidth: 255
+    flexBasis: 280,
+    minWidth: 255,
+    maxWidth: 340
   },
   cardTitle: {
     color: colors.ink,
