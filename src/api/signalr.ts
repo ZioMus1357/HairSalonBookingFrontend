@@ -5,6 +5,6 @@ export function createBookingHub(): HubConnection {
   return new HubConnectionBuilder()
     .withUrl(`${API_BASE_URL}/hubs/booking-notifications`)
     .withAutomaticReconnect()
-    .configureLogging(LogLevel.Information)
+    .configureLogging(LogLevel.None)
     .build();
 }
