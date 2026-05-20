@@ -20,3 +20,10 @@ for (const fileName of ["index.html", "404.html"]) {
 
   fs.writeFileSync(filePath, html);
 }
+
+const indexPath = path.join(outputDir, "index.html");
+if (fs.existsSync(indexPath)) {
+  const callbackDir = path.join(outputDir, "auth", "callback");
+  fs.mkdirSync(callbackDir, { recursive: true });
+  fs.copyFileSync(indexPath, path.join(callbackDir, "index.html"));
+}
