@@ -203,10 +203,27 @@ export function GalleryPage() {
 
 export function ReviewsPage() {
   const data = useAsyncData(() => reviewsApi.public(), []);
+  const [ratingFilter, setRatingFilter] = useState("all");
+  const [sort, setSort] = useState("newest");
+  const reviews = useMemo(() => {
+    const rows = [...(data.data ?? [])].filter((item) => ratingFilter === "all" || item.rating === Number(ratingFilter));
+    rows.sort((a, b) => {
+      if (sort === "highest") return b.rating - a.rating;
+      if (sort === "lowest") return a.rating - b.rating;
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return sort === "oldest" ? aTime - bTime : bTime - aTime;
+    });
+    return rows;
+  }, [data.data, ratingFilter, sort]);
   return (
     <>
       <PageHeader kicker="Opinie" title="Doświadczenia klientów" subtitle="Publiczne recenzje wizyt w Maison Noir. Pokazujemy wyłącznie opinie oznaczone jako widoczne." image={images.hairOne} />
-      <ReviewsGrid reviews={data.data ?? []} loading={data.loading} error={data.error} />
+      <Card>
+        <SelectRail label="Ocena" value={ratingFilter} options={[{ label: "Wszystkie", value: "all" }, ...[5, 4, 3, 2, 1].map((value) => ({ label: stars(value), value: String(value) }))]} onChange={setRatingFilter} />
+        <SelectRail label="Sortowanie" value={sort} options={[{ label: "Najnowsze", value: "newest" }, { label: "Najstarsze", value: "oldest" }, { label: "Najwyzsza ocena", value: "highest" }, { label: "Najnizsza ocena", value: "lowest" }]} onChange={setSort} />
+      </Card>
+      <ReviewsGrid reviews={reviews} loading={data.loading} error={data.error} />
     </>
   );
 }
@@ -743,6 +760,22 @@ export function AdminAppointmentsPage() {
 export function AdminReviewsPage() {
   const data = useAsyncData(() => adminApi.reviews(), []);
   const { showToast } = useToast();
+  const [visibilityFilter, setVisibilityFilter] = useState("all");
+  const [ratingFilter, setRatingFilter] = useState("all");
+  const [sort, setSort] = useState("newest");
+  const reviews = useMemo(() => {
+    const rows = [...(data.data ?? [])]
+      .filter((item) => visibilityFilter === "all" || (visibilityFilter === "visible" ? item.isVisible : !item.isVisible))
+      .filter((item) => ratingFilter === "all" || item.rating === Number(ratingFilter));
+    rows.sort((a, b) => {
+      if (sort === "highest") return b.rating - a.rating;
+      if (sort === "lowest") return a.rating - b.rating;
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return sort === "oldest" ? aTime - bTime : bTime - aTime;
+    });
+    return rows;
+  }, [data.data, ratingFilter, sort, visibilityFilter]);
   const refreshAfter = (promise: Promise<unknown>, success: string) =>
     promise
       .then(() => {
@@ -754,8 +787,13 @@ export function AdminReviewsPage() {
   return (
     <>
       <PageHeader kicker="Admin" title="Moderacja opinii" subtitle="Ukrywaj, przywracaj albo usuwaj recenzje klientów. Publicznie widoczne są tylko opinie z aktywną widocznością." image={images.hairTwo} />
-      <StateView loading={data.loading} error={data.error} empty={(data.data ?? []).length === 0}>
-        <DataTable items={data.data ?? []} columns={[
+      <Card>
+        <SelectRail label="Widocznosc" value={visibilityFilter} options={[{ label: "Wszystkie", value: "all" }, { label: "Widoczne", value: "visible" }, { label: "Ukryte", value: "hidden" }]} onChange={setVisibilityFilter} />
+        <SelectRail label="Ocena" value={ratingFilter} options={[{ label: "Wszystkie", value: "all" }, ...[5, 4, 3, 2, 1].map((value) => ({ label: stars(value), value: String(value) }))]} onChange={setRatingFilter} />
+        <SelectRail label="Sortowanie" value={sort} options={[{ label: "Najnowsze", value: "newest" }, { label: "Najstarsze", value: "oldest" }, { label: "Najwyzsza ocena", value: "highest" }, { label: "Najnizsza ocena", value: "lowest" }]} onChange={setSort} />
+      </Card>
+      <StateView loading={data.loading} error={data.error} empty={reviews.length === 0}>
+        <DataTable items={reviews} columns={[
           { title: "Autor", render: (item) => item.displayName || "Klient" },
           { title: "Ocena", render: (item) => stars(item.rating) },
           { title: "Treść", render: (item) => item.content || "Brak treści" },
