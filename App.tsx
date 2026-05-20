@@ -1,6 +1,6 @@
 import "react-native-reanimated";
 import { StatusBar } from "expo-status-bar";
-import { useMemo } from "react";
+import { ReactElement, useMemo } from "react";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { ToastProvider } from "./src/context/ToastContext";
 import { AppShell } from "./src/layout/AppShell";
@@ -40,7 +40,7 @@ import { UserRole } from "./src/types/domain";
 type Route = {
   pattern: string;
   roles?: Array<UserRole | "Authenticated">;
-  render: (params: Record<string, string>) => JSX.Element;
+  render: (params: Record<string, string>) => ReactElement;
 };
 
 const routes: Route[] = [
