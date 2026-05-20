@@ -10,7 +10,7 @@ import { useToast } from "../context/ToastContext";
 import { useAsyncData } from "../hooks/useAsyncData";
 import { useRouter } from "../router/RouterContext";
 import { colors, images, radii, shadow } from "../theme/tokens";
-import { Appointment, AppointmentRequest, AppointmentStatus, CreateAppointmentRequest, Customer, CustomerRequest, Hairdresser, HairdresserCustomerHistory, HairdresserRequest, Review, ReviewRequest, SalonPhoto, SalonService, SalonServiceRequest, UserRole } from "../types/domain";
+import { AppUser, Appointment, AppointmentRequest, AppointmentStatus, CreateAppointmentRequest, Customer, CustomerRequest, Hairdresser, HairdresserCustomerHistory, HairdresserRequest, Review, ReviewRequest, SalonPhoto, SalonService, SalonServiceRequest, UserRole } from "../types/domain";
 import { addDays, appointmentLabel, dateOnly, fullName, getErrorMessage, money, toLocalDateTime } from "../utils/format";
 
 const fallbackGallery = [
@@ -649,7 +649,7 @@ export function AdminDashboardPage() {
         <Button label="Dodaj fryzjera" onPress={() => navigate("/admin/hairdressers")} />
         <Button label="Dodaj zdjęcie" onPress={() => navigate("/admin/gallery")} />
         <Button label="Zarządzaj rolami" onPress={() => navigate("/admin/users")} />
-        <Button label="Test SignalR" variant="ghost" onPress={() => notificationsApi.signalrTest().then(() => showToast({ title: "Test SignalR wysłany", tone: "success" })).catch((err) => showToast({ title: "Test SignalR nieudany", message: getErrorMessage(err), tone: "error" }))} />
+        <Button label="Test SignalR" onPress={() => notificationsApi.signalrTest().then(() => showToast({ title: "Test SignalR wysłany", tone: "success" })).catch((err) => showToast({ title: "Test SignalR nieudany", message: getErrorMessage(err), tone: "error" }))} />
       </View>
       <VisitsView title="Ostatnie rezerwacje" appointments={(appointments.data ?? []).slice(0, 6)} loading={appointments.loading || customers.loading} error={appointments.error || customers.error} customers={customers.data ?? []} />
     </>
@@ -661,20 +661,43 @@ export function AdminUsersPage() {
   const customers = useAsyncData(() => adminApi.customers(), []);
   const hairdressers = useAsyncData(() => adminApi.hairdressers(), []);
   const { showToast } = useToast();
+  const [selectedUser, setSelectedUser] = useState<AppUser | null>(null);
   const [role, setRole] = useState<UserRole>("Customer");
   const [customerId, setCustomerId] = useState("");
   const [hairdresserId, setHairdresserId] = useState("");
+  const selectUser = (user: AppUser) => {
+    setSelectedUser(user);
+    setRole(user.role);
+    setCustomerId(user.customerId ?? "");
+    setHairdresserId(user.hairdresserId ?? "");
+  };
+  const save = () => {
+    if (!selectedUser) return;
+    adminApi.assignRole(selectedUser.id, role, role === "Customer" ? customerId || undefined : undefined, role === "Hairdresser" ? hairdresserId || undefined : undefined)
+      .then(() => {
+        showToast({ title: "Użytkownik zaktualizowany", tone: "success" });
+        setSelectedUser(null);
+        data.refresh();
+      })
+      .catch((err) => showToast({ title: "Nie zapisano użytkownika", message: getErrorMessage(err), tone: "error" }));
+  };
   return (
     <>
       <PageHeader kicker="Admin" title="Użytkownicy i role" subtitle="Zarządzaj dostępem do aplikacji i przypisuj konta do klientów, fryzjerów lub administratorów." image={images.hero} />
       <StateView loading={data.loading} error={data.error} empty={(data.data ?? []).length === 0}>
-        <DataTable items={data.data ?? []} columns={[{ title: "Użytkownik", render: (u) => u.displayName || u.id }, { title: "Email", render: (u) => u.email }, { title: "Rola", render: (u) => u.role }]} actions={(user) => <Button label="Ustaw" variant="ghost" onPress={() => adminApi.assignRole(user.id, role, customerId || undefined, hairdresserId || undefined).then(() => { showToast({ title: "Rola przypisana", tone: "success" }); data.refresh(); }).catch((err) => showToast({ title: "Nie przypisano roli", message: getErrorMessage(err), tone: "error" }))} />} />
+        <DataTable items={data.data ?? []} columns={[{ title: "Użytkownik", render: (u) => u.displayName || u.id }, { title: "Email", render: (u) => u.email }, { title: "Rola", render: (u) => u.role }]} actions={(user) => <View style={screenStyles.tableActionStack}><Button label="Edytuj" variant="ghost" onPress={() => selectUser(user)} /><Button label="Usuń" variant="ghost" disabled onPress={() => undefined} /></View>} />
       </StateView>
-      <Card>
-        <SelectRail label="Rola" value={role} options={["Customer", "Hairdresser", "Admin"].map((item) => ({ label: item, value: item }))} onChange={(v) => setRole(v as UserRole)} />
-        <SelectRail label="CustomerId" value={customerId} options={(customers.data ?? []).map((item) => ({ label: fullName(item), value: item.id }))} onChange={setCustomerId} />
-        <SelectRail label="HairdresserId" value={hairdresserId} options={(hairdressers.data ?? []).map((item) => ({ label: fullName(item), value: item.id }))} onChange={setHairdresserId} />
-      </Card>
+      {selectedUser ? (
+        <Card>
+          <Text style={screenStyles.cardTitle}>Edycja użytkownika: {selectedUser.displayName || selectedUser.email}</Text>
+          <SelectDropdown label="Rola" value={role} options={["Customer", "Hairdresser", "Admin"].map((item) => ({ label: item, value: item }))} onChange={(v) => setRole(v as UserRole)} />
+          {role === "Customer" ? <SelectDropdown label="Powiązany klient" value={customerId} options={[{ label: "Brak powiązania", value: "" }, ...(customers.data ?? []).map((item) => ({ label: `${fullName(item)} · ${item.email}`, value: item.id }))]} onChange={setCustomerId} /> : null}
+          {role === "Hairdresser" ? <SelectDropdown label="Powiązany fryzjer" value={hairdresserId} options={[{ label: "Brak powiązania", value: "" }, ...(hairdressers.data ?? []).map((item) => ({ label: `${fullName(item)} · ${item.specialization || "profil"}`, value: item.id }))]} onChange={setHairdresserId} /> : null}
+          {role === "Admin" ? <Text style={screenStyles.muted}>Administrator nie wymaga powiązania z klientem ani fryzjerem.</Text> : null}
+          <View style={screenStyles.actions}><Button label="Zapisz zmiany" onPress={save} /><Button label="Anuluj" variant="ghost" onPress={() => setSelectedUser(null)} /></View>
+          <Text style={screenStyles.muted}>Usuwanie użytkowników nie jest dostępne w aktualnym API backendu. Swagger udostępnia tylko listę użytkowników oraz zmianę roli.</Text>
+        </Card>
+      ) : null}
     </>
   );
 }
@@ -777,11 +800,11 @@ export function AdminGalleryPage() {
       <Card><Field label="Podpis zdjęcia" value={caption} onChangeText={setCaption} /><Button label="Upload zdjęcia" icon={<Upload size={17} color={colors.ink} />} onPress={() => upload().catch((err) => showToast({ title: "Upload nieudany", message: getErrorMessage(err), tone: "error" }))} /></Card>
       <StateView loading={data.loading} error={data.error} empty={photos.length === 0}>
         <Card>
-          <SelectRail label="Zdjęcie do edycji" value={selectedPhotoId} options={photos.map((photo) => ({ label: photo.caption || photo.fileName, value: photo.id }))} onChange={selectPhoto} />
+          <SelectDropdown label="Zdjęcie do edycji" value={selectedPhotoId} options={[{ label: "Wybierz zdjęcie", value: "" }, ...photos.map((photo) => ({ label: photo.caption || photo.fileName, value: photo.id }))]} onChange={selectPhoto} />
           <Field label="Nowy podpis" value={editCaption} onChangeText={setEditCaption} />
           <Button label="Zapisz podpis" onPress={() => updateCaption().catch((err) => showToast({ title: "Nie zapisano podpisu", message: getErrorMessage(err), tone: "error" }))} />
         </Card>
-        <GalleryGrid photos={photos} onDelete={(id) => galleryApi.remove(id).then(data.refresh)} />
+        <GalleryGrid photos={photos} onEdit={selectPhoto} onDelete={(id) => galleryApi.remove(id).then(data.refresh)} />
       </StateView>
     </>
   );
@@ -820,9 +843,9 @@ function HairdresserGrid({ hairdressers, loading, error, selectedId, onProfile, 
   return <StateView loading={loading} error={error} empty={hairdressers.length === 0}><View style={screenStyles.grid}>{hairdressers.map((hairdresser) => <Pressable key={hairdresser.id} style={screenStyles.flexCard}><Card selected={selectedId === hairdresser.id}><Image source={{ uri: hairdresser.photoUrl || images.stylist }} style={screenStyles.avatar} /><Text style={screenStyles.cardTitle}>{fullName(hairdresser)}</Text><Text style={screenStyles.muted}>{hairdresser.specialization}</Text><View style={screenStyles.actions}><Button label="Profil" variant="ghost" onPress={() => onProfile(hairdresser.id)} /><Button label="Umów" onPress={() => onBook(hairdresser.id)} disabled={!hairdresser.isActive} /></View></Card></Pressable>)}</View></StateView>;
 }
 
-function GalleryGrid({ photos, onDelete }: { photos: SalonPhoto[]; onDelete?: (id: string) => void }) {
+function GalleryGrid({ photos, onDelete, onEdit }: { photos: SalonPhoto[]; onDelete?: (id: string) => void; onEdit?: (id: string) => void }) {
   const items = photos.length ? photos.map((photo) => ({ id: photo.id, title: photo.caption || photo.fileName, image: photo.blobUrl })) : fallbackGallery.map((item, index) => ({ id: `${index}`, ...item }));
-  return <View style={screenStyles.gallery}>{items.map((item) => <View key={item.id} style={screenStyles.galleryItem}><Image source={{ uri: item.image }} style={screenStyles.galleryImage} /><LinearGradient colors={["transparent", "rgba(0,0,0,0.72)"]} style={screenStyles.galleryShade}><Text style={screenStyles.galleryTitle}>{item.title}</Text>{onDelete ? <Pressable onPress={() => onDelete(item.id)} style={screenStyles.deleteButton}><Trash2 size={16} color={colors.pearl} /></Pressable> : null}</LinearGradient></View>)}</View>;
+  return <View style={screenStyles.gallery}>{items.map((item) => <View key={item.id} style={screenStyles.galleryItem}><Image source={{ uri: item.image }} style={screenStyles.galleryImage} /><LinearGradient colors={["transparent", "rgba(0,0,0,0.72)"]} style={screenStyles.galleryShade}><Text style={screenStyles.galleryTitle}>{item.title}</Text>{onEdit || onDelete ? <View style={screenStyles.galleryActions}>{onEdit ? <Pressable onPress={() => onEdit(item.id)} style={screenStyles.galleryActionButton}><Edit3 size={16} color={colors.pearl} /></Pressable> : null}{onDelete ? <Pressable onPress={() => onDelete(item.id)} style={screenStyles.galleryActionButton}><Trash2 size={16} color={colors.pearl} /></Pressable> : null}</View> : null}</LinearGradient></View>)}</View>;
 }
 
 function Testimonials() {
@@ -946,6 +969,34 @@ function DatePickerField({ label, value, onChange }: { label: string; value: str
   return <Field label={label} value={value} onChangeText={onChange} placeholder="YYYY-MM-DD" />;
 }
 
+function SelectDropdown({ label, value, options, onChange }: { label: string; value: string; options: { label: string; value: string; disabled?: boolean }[]; onChange: (value: string) => void }) {
+  if (Platform.OS === "web") {
+    return (
+      <View style={screenStyles.datePickerField}>
+        <Text style={screenStyles.fieldLabel}>{label}</Text>
+        <View style={screenStyles.dateInputShell}>
+          {createElement("select", {
+            value,
+            onChange: (event: { target: { value: string } }) => onChange(event.target.value),
+            style: {
+              border: "none",
+              outline: "none",
+              background: "transparent",
+              color: colors.ink,
+              fontFamily: "inherit",
+              fontSize: 15,
+              fontWeight: 800,
+              width: "100%"
+            }
+          }, options.map((option) => createElement("option", { key: option.value, value: option.value, disabled: option.disabled }, option.label)))}
+        </View>
+      </View>
+    );
+  }
+
+  return <SelectRail label={label} value={value} options={options} onChange={onChange} />;
+}
+
 function CustomerHistoryCard({ history, fallbackAppointments, services }: { history: HairdresserCustomerHistory; fallbackAppointments: Appointment[]; services: SalonService[] }) {
   const now = Date.now();
   const fallbackPrevious = fallbackAppointments.filter((appointment) => appointment.status === "Completed" || appointment.status === "Cancelled" || new Date(appointment.startAt).getTime() < now);
@@ -1029,21 +1080,42 @@ function VisitsView({ title, appointments, loading, error, adminRefresh, showHea
 function CustomersCrud({ data }: { data: ReturnType<typeof useAsyncData<Customer[]>> }) {
   const { showToast } = useToast();
   const [form, setForm] = useState<CustomerRequest>({ firstName: "", lastName: "", phoneNumber: "", email: "", notes: "" });
-  return <><PageHeader kicker="Admin" title="Klienci" subtitle="Dodawaj klientów, aktualizuj dane kontaktowe i utrzymuj porządek w bazie salonu." image={images.hairOne} /><Card><CustomerForm form={form} setForm={setForm} /><Button label="Dodaj klienta" icon={<Plus size={17} color={colors.ink} />} onPress={() => customersApi.create(form).then(() => { showToast({ title: "Klient dodany", tone: "success" }); data.refresh(); })} /></Card><StateView loading={data.loading} error={data.error} empty={(data.data ?? []).length === 0}><DataTable items={data.data ?? []} columns={[{ title: "Klient", render: fullName }, { title: "Email", render: (x) => x.email }, { title: "Telefon", render: (x) => x.phoneNumber }]} actions={(item) => <Button label="Usuń" variant="ghost" onPress={() => confirmDelete(() => customersApi.remove(item.id).then(data.refresh))} />} /></StateView></>;
+  const [editingId, setEditingId] = useState("");
+  const reset = () => { setEditingId(""); setForm({ firstName: "", lastName: "", phoneNumber: "", email: "", notes: "" }); };
+  const edit = (item: Customer) => { setEditingId(item.id); setForm({ firstName: item.firstName, lastName: item.lastName, phoneNumber: item.phoneNumber, email: item.email, notes: item.notes ?? "" }); };
+  const save = () => {
+    const request = editingId ? customersApi.update(editingId, form) : customersApi.create(form);
+    request.then(() => { showToast({ title: editingId ? "Klient zapisany" : "Klient dodany", tone: "success" }); reset(); data.refresh(); }).catch((err) => showToast({ title: "Nie zapisano klienta", message: getErrorMessage(err), tone: "error" }));
+  };
+  return <><PageHeader kicker="Admin" title="Klienci" subtitle="Dodawaj klientów, aktualizuj dane kontaktowe i utrzymuj porządek w bazie salonu." image={images.hairOne} /><Card><Text style={screenStyles.cardTitle}>{editingId ? "Edytuj klienta" : "Dodaj klienta"}</Text><CustomerForm form={form} setForm={setForm} /><View style={screenStyles.actions}><Button label={editingId ? "Zapisz klienta" : "Dodaj klienta"} icon={<Plus size={17} color={colors.ink} />} onPress={save} />{editingId ? <Button label="Anuluj" variant="ghost" onPress={reset} /> : null}</View></Card><StateView loading={data.loading} error={data.error} empty={(data.data ?? []).length === 0}><DataTable items={data.data ?? []} columns={[{ title: "Klient", render: fullName }, { title: "Email", render: (x) => x.email }, { title: "Telefon", render: (x) => x.phoneNumber }]} actions={(item) => <View style={screenStyles.tableActionStack}><Button label="Edytuj" variant="ghost" onPress={() => edit(item)} /><Button label="Usuń" variant="ghost" onPress={() => confirmDelete(() => customersApi.remove(item.id).then(data.refresh))} /></View>} /></StateView></>;
 }
 
 function HairdressersCrud({ data }: { data: ReturnType<typeof useAsyncData<Hairdresser[]>> }) {
   const { showToast } = useToast();
   const [form, setForm] = useState<HairdresserRequest>({ firstName: "", lastName: "", specialization: "", isActive: true });
+  const [editingId, setEditingId] = useState("");
+  const reset = () => { setEditingId(""); setForm({ firstName: "", lastName: "", specialization: "", isActive: true }); };
+  const edit = (item: Hairdresser) => { setEditingId(item.id); setForm({ firstName: item.firstName, lastName: item.lastName, specialization: item.specialization, isActive: item.isActive }); };
+  const save = () => {
+    const request = editingId ? hairdressersApi.update(editingId, form) : hairdressersApi.create(form);
+    request.then(() => { showToast({ title: editingId ? "Fryzjer zapisany" : "Fryzjer dodany", tone: "success" }); reset(); data.refresh(); }).catch((err) => showToast({ title: "Nie zapisano fryzjera", message: getErrorMessage(err), tone: "error" }));
+  };
   const upload = async (id: string) => { const picked = await DocumentPicker.getDocumentAsync({ type: ["image/jpeg", "image/png", "image/webp"] }); if (!picked.canceled) { await hairdressersApi.uploadPhoto(id, picked.assets[0]); showToast({ title: "Zdjęcie fryzjera zapisane", tone: "success" }); data.refresh(); } };
-  return <><PageHeader kicker="Admin" title="Zespół fryzjerów" subtitle="Zarządzaj profilami stylistów, ich specjalizacjami, aktywnością i zdjęciami profilowymi." image={images.stylist} /><Card><Field label="Imię" value={form.firstName} onChangeText={(firstName) => setForm({ ...form, firstName })} /><Field label="Nazwisko" value={form.lastName} onChangeText={(lastName) => setForm({ ...form, lastName })} /><Field label="Specjalizacja" value={form.specialization} onChangeText={(specialization) => setForm({ ...form, specialization })} /><Chip label="Aktywny" active={form.isActive} onPress={() => setForm({ ...form, isActive: !form.isActive })} /><Button label="Dodaj fryzjera" icon={<Plus size={17} color={colors.ink} />} onPress={() => hairdressersApi.create(form).then(() => { showToast({ title: "Fryzjer dodany", tone: "success" }); data.refresh(); })} /></Card><StateView loading={data.loading} error={data.error} empty={(data.data ?? []).length === 0}><DataTable items={data.data ?? []} columns={[{ title: "Fryzjer", render: fullName }, { title: "Specjalizacja", render: (x) => x.specialization }, { title: "Status", render: (x) => x.isActive ? "Aktywny" : "Nieaktywny" }]} actions={(item) => <View style={screenStyles.actions}><Button label="Foto" variant="ghost" icon={<Upload size={15} color={colors.gold} />} onPress={() => upload(item.id)} /><Button label="Usuń" variant="ghost" onPress={() => confirmDelete(() => hairdressersApi.remove(item.id).then(data.refresh))} /></View>} /></StateView></>;
+  return <><PageHeader kicker="Admin" title="Zespół fryzjerów" subtitle="Zarządzaj profilami stylistów, ich specjalizacjami, aktywnością i zdjęciami profilowymi." image={images.stylist} /><Card><Text style={screenStyles.cardTitle}>{editingId ? "Edytuj fryzjera" : "Dodaj fryzjera"}</Text><HairdresserForm form={form} setForm={setForm} /><View style={screenStyles.actions}><Button label={editingId ? "Zapisz fryzjera" : "Dodaj fryzjera"} icon={<Plus size={17} color={colors.ink} />} onPress={save} />{editingId ? <Button label="Anuluj" variant="ghost" onPress={reset} /> : null}</View></Card><StateView loading={data.loading} error={data.error} empty={(data.data ?? []).length === 0}><DataTable items={data.data ?? []} columns={[{ title: "Fryzjer", render: fullName }, { title: "Specjalizacja", render: (x) => x.specialization }, { title: "Status", render: (x) => x.isActive ? "Aktywny" : "Nieaktywny" }]} actions={(item) => <View style={screenStyles.tableActionStack}><Button label="Edytuj" variant="ghost" onPress={() => edit(item)} /><Button label="Foto" variant="ghost" icon={<Upload size={15} color={colors.gold} />} onPress={() => upload(item.id)} /><Button label="Usuń" variant="ghost" onPress={() => confirmDelete(() => hairdressersApi.remove(item.id).then(data.refresh))} /></View>} /></StateView></>;
 }
 
 function ServicesCrud({ data }: { data: ReturnType<typeof useAsyncData<SalonService[]>> }) {
   const { showToast } = useToast();
   const [form, setForm] = useState({ name: "", description: "", durationMinutes: "60", price: "150", isAvailable: true });
+  const [editingId, setEditingId] = useState("");
   const body = (): SalonServiceRequest => ({ name: form.name, description: form.description, durationMinutes: Number(form.durationMinutes), price: Number(form.price), isAvailable: form.isAvailable });
-  return <><PageHeader kicker="Admin" title="Usługi salonu" subtitle="Dodawaj i aktualizuj ofertę, ceny, czas trwania oraz dostępność usług widocznych dla klientów." image={images.hairTwo} /><Card><Field label="Nazwa" value={form.name} onChangeText={(name) => setForm({ ...form, name })} /><Field label="Opis" value={form.description} onChangeText={(description) => setForm({ ...form, description })} /><Field label="Czas min" value={form.durationMinutes} onChangeText={(durationMinutes) => setForm({ ...form, durationMinutes })} keyboardType="numeric" /><Field label="Cena" value={form.price} onChangeText={(price) => setForm({ ...form, price })} keyboardType="numeric" /><Chip label="Dostępna" active={form.isAvailable} onPress={() => setForm({ ...form, isAvailable: !form.isAvailable })} /><Button label="Dodaj usługę" onPress={() => servicesApi.create(body()).then(() => { showToast({ title: "Usługa dodana", tone: "success" }); data.refresh(); })} /></Card><StateView loading={data.loading} error={data.error} empty={(data.data ?? []).length === 0}><DataTable items={data.data ?? []} columns={[{ title: "Usługa", render: (x) => x.name }, { title: "Cena", render: (x) => money(x.price) }, { title: "Czas", render: (x) => `${x.durationMinutes} min` }, { title: "Status", render: (x) => x.isAvailable ? "Dostępna" : "Niedostępna" }]} actions={(item) => <Button label="Usuń" variant="ghost" onPress={() => confirmDelete(() => servicesApi.remove(item.id).then(data.refresh))} />} /></StateView></>;
+  const reset = () => { setEditingId(""); setForm({ name: "", description: "", durationMinutes: "60", price: "150", isAvailable: true }); };
+  const edit = (item: SalonService) => { setEditingId(item.id); setForm({ name: item.name, description: item.description, durationMinutes: String(item.durationMinutes), price: String(item.price), isAvailable: item.isAvailable }); };
+  const save = () => {
+    const request = editingId ? servicesApi.update(editingId, body()) : servicesApi.create(body());
+    request.then(() => { showToast({ title: editingId ? "Usługa zapisana" : "Usługa dodana", tone: "success" }); reset(); data.refresh(); }).catch((err) => showToast({ title: "Nie zapisano usługi", message: getErrorMessage(err), tone: "error" }));
+  };
+  return <><PageHeader kicker="Admin" title="Usługi salonu" subtitle="Dodawaj i aktualizuj ofertę, ceny, czas trwania oraz dostępność usług widocznych dla klientów." image={images.hairTwo} /><Card><Text style={screenStyles.cardTitle}>{editingId ? "Edytuj usługę" : "Dodaj usługę"}</Text><Field label="Nazwa" value={form.name} onChangeText={(name) => setForm({ ...form, name })} /><Field label="Opis" value={form.description} onChangeText={(description) => setForm({ ...form, description })} /><Field label="Czas min" value={form.durationMinutes} onChangeText={(durationMinutes) => setForm({ ...form, durationMinutes })} keyboardType="numeric" /><Field label="Cena" value={form.price} onChangeText={(price) => setForm({ ...form, price })} keyboardType="numeric" /><Chip label="Dostępna" active={form.isAvailable} onPress={() => setForm({ ...form, isAvailable: !form.isAvailable })} /><View style={screenStyles.actions}><Button label={editingId ? "Zapisz usługę" : "Dodaj usługę"} onPress={save} />{editingId ? <Button label="Anuluj" variant="ghost" onPress={reset} /> : null}</View></Card><StateView loading={data.loading} error={data.error} empty={(data.data ?? []).length === 0}><DataTable items={data.data ?? []} columns={[{ title: "Usługa", render: (x) => x.name }, { title: "Cena", render: (x) => money(x.price) }, { title: "Czas", render: (x) => `${x.durationMinutes} min` }, { title: "Status", render: (x) => x.isAvailable ? "Dostępna" : "Niedostępna" }]} actions={(item) => <View style={screenStyles.tableActionStack}><Button label="Edytuj" variant="ghost" onPress={() => edit(item)} /><Button label="Usuń" variant="ghost" onPress={() => confirmDelete(() => servicesApi.remove(item.id).then(data.refresh))} /></View>} /></StateView></>;
 }
 
 function CustomerForm({ form, setForm }: { form: CustomerRequest; setForm: (form: CustomerRequest) => void }) {
@@ -1522,6 +1594,23 @@ const screenStyles = StyleSheet.create({
     color: colors.pearl,
     fontWeight: "900",
     fontSize: 16
+  },
+  galleryActions: {
+    position: "absolute",
+    right: 10,
+    top: 10,
+    flexDirection: "row",
+    gap: 8
+  },
+  galleryActionButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.28)"
   },
   deleteButton: {
     width: 36,
