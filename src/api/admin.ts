@@ -13,5 +13,6 @@ export const adminApi = {
     request<AppUser>(`/api/Admin/users/${userId}/role`, {
       method: "PUT",
       body: asJson({ role, customerId, hairdresserId })
-    })
+    }),
+  removeUser: (userId: string) => request<void>(`/api/Admin/users/${userId}`, { method: "DELETE" })
 };

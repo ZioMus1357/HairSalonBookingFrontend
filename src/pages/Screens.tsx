@@ -411,11 +411,20 @@ export function BookingPage() {
 }
 
 export function MyVisitsPage() {
+  const { showToast } = useToast();
   const data = useAsyncData(() => customersApi.myAppointments(), []);
   const reviews = useAsyncData(() => reviewsApi.mine(), []);
+  const cancelAppointment = (appointment: Appointment) => {
+    customersApi.cancelMyAppointment(appointment.id)
+      .then(() => {
+        showToast({ title: "Wizyta odwołana", tone: "success" });
+        data.refresh();
+      })
+      .catch((err) => showToast({ title: "Nie odwołano wizyty", message: getErrorMessage(err), tone: "error" }));
+  };
   return (
     <>
-      <VisitsView title="Moje wizyty" appointments={data.data ?? []} loading={data.loading} error={data.error} showCustomer={false} />
+      <VisitsView title="Moje wizyty" appointments={data.data ?? []} loading={data.loading} error={data.error} showCustomer={false} onCancel={(appointment) => confirmDelete(() => cancelAppointment(appointment), "Na pewno odwołać tę wizytę?", "Odwołaj")} />
       <CustomerReviewPanel appointments={data.data ?? []} reviews={reviews.data ?? []} appointmentsLoading={data.loading} reviewsLoading={reviews.loading} error={reviews.error} onSaved={reviews.refresh} />
     </>
   );
@@ -423,6 +432,7 @@ export function MyVisitsPage() {
 
 export function ProfilePage() {
   const { showToast } = useToast();
+  const auth = useAuth();
   const { query, navigate } = useRouter();
   const onboarding = query.get("onboarding") === "1";
   const data = useAsyncData(() => customersApi.me(), []);
@@ -444,6 +454,14 @@ export function ProfilePage() {
       })
       .catch((err) => showToast({ title: "Nie zapisano profilu", message: getErrorMessage(err), tone: "error" }));
   };
+  const removeAccount = () => {
+    customersApi.removeMe()
+      .then(() => {
+        showToast({ title: "Konto usunięte", message: "Twój profil klienta został usunięty.", tone: "success" });
+        auth.logout();
+      })
+      .catch((err) => showToast({ title: "Nie usunięto konta", message: getErrorMessage(err), tone: "error" }));
+  };
 
   return (
     <>
@@ -453,6 +471,7 @@ export function ProfilePage() {
           <CustomerForm form={form} setForm={setForm} showNotes={false} />
           <Button label={onboarding ? "Zapisz i przejdź do rezerwacji" : "Zapisz profil"} icon={<Edit3 size={17} color={colors.ink} />} onPress={save} />
         </Card>
+        {!onboarding ? <Card><Text style={screenStyles.cardTitle}>Usunięcie konta</Text><Text style={screenStyles.muted}>Ta akcja usuwa Twój profil klienta i dane powiązane z kontem w aplikacji.</Text><Button label="Usuń moje konto" variant="ghost" icon={<Trash2 size={17} color={colors.gold} />} onPress={() => confirmDelete(removeAccount, "Na pewno usunąć swoje konto?", "Usuń konto")} /></Card> : null}
       </StateView>
     </>
   );
@@ -710,7 +729,7 @@ export function AdminUsersPage() {
     <>
       <PageHeader kicker="Admin" title="Użytkownicy i role" subtitle="Zarządzaj dostępem do aplikacji i przypisuj konta do klientów, fryzjerów lub administratorów." image={images.hero} />
       <StateView loading={data.loading} error={data.error} empty={(data.data ?? []).length === 0}>
-        <DataTable items={data.data ?? []} columns={[{ title: "Użytkownik", render: (u) => u.displayName || u.email || "Użytkownik" }, { title: "Email", render: (u) => u.email }, { title: "Rola", render: (u) => u.role }]} actions={(user) => <View style={screenStyles.tableActionStack}><Button label="Edytuj" variant="ghost" onPress={() => selectUser(user)} /><Button label="Usuń" variant="ghost" disabled onPress={() => undefined} /></View>} />
+        <DataTable items={data.data ?? []} columns={[{ title: "Użytkownik", render: (u) => u.displayName || u.email || "Użytkownik" }, { title: "Email", render: (u) => u.email }, { title: "Rola", render: (u) => u.role }]} actions={(user) => <View style={screenStyles.tableActionStack}><Button label="Edytuj" variant="ghost" onPress={() => selectUser(user)} /><Button label="Usuń" variant="ghost" onPress={() => confirmDelete(() => adminApi.removeUser(user.id).then(() => { showToast({ title: "Użytkownik usunięty", tone: "success" }); if (selectedUser?.id === user.id) setSelectedUser(null); data.refresh(); }).catch((err) => showToast({ title: "Nie usunięto użytkownika", message: getErrorMessage(err), tone: "error" })), "Na pewno usunąć tego użytkownika?", "Usuń użytkownika")} /></View>} />
       </StateView>
       {selectedUser ? (
         <Card>
@@ -720,7 +739,7 @@ export function AdminUsersPage() {
           {role === "Hairdresser" ? <SelectDropdown label="Powiązany fryzjer" value={hairdresserId} options={[{ label: "Brak powiązania", value: "" }, ...(hairdressers.data ?? []).map((item) => ({ label: `${fullName(item)} · ${item.specialization || "profil"}`, value: item.id }))]} onChange={setHairdresserId} /> : null}
           {role === "Admin" ? <Text style={screenStyles.muted}>Administrator nie wymaga powiązania z klientem ani fryzjerem.</Text> : null}
           <View style={screenStyles.actions}><Button label="Zapisz zmiany" onPress={save} /><Button label="Anuluj" variant="ghost" onPress={() => setSelectedUser(null)} /></View>
-          <Text style={screenStyles.muted}>Usuwanie użytkowników nie jest dostępne w aktualnej konfiguracji. Możesz zmieniać role i powiązania kont.</Text>
+          <Text style={screenStyles.muted}>Możesz zmienić rolę użytkownika, powiązać konto z profilem klienta albo fryzjera, a z listy usunąć konto, które nie powinno mieć dostępu do aplikacji.</Text>
         </Card>
       ) : null}
     </>
@@ -1090,7 +1109,7 @@ function CustomerHistoryCard({ history, fallbackAppointments, services }: { hist
   );
 }
 
-function VisitsView({ title, appointments, loading, error, adminRefresh, showHeader = true, onStatusChange, customers = [], showCustomer = true }: { title: string; appointments: Appointment[]; loading?: boolean; error?: string; adminRefresh?: () => void; showHeader?: boolean; onStatusChange?: (appointment: Appointment, status: AppointmentStatus) => void; customers?: Customer[]; showCustomer?: boolean }) {
+function VisitsView({ title, appointments, loading, error, adminRefresh, showHeader = true, onStatusChange, onCancel, customers = [], showCustomer = true }: { title: string; appointments: Appointment[]; loading?: boolean; error?: string; adminRefresh?: () => void; showHeader?: boolean; onStatusChange?: (appointment: Appointment, status: AppointmentStatus) => void; onCancel?: (appointment: Appointment) => void; customers?: Customer[]; showCustomer?: boolean }) {
   const services = useAsyncData(() => servicesApi.all(), []);
   const hairdressers = useAsyncData(() => hairdressersApi.all(), []);
   const { showToast } = useToast();
@@ -1115,7 +1134,10 @@ function VisitsView({ title, appointments, loading, error, adminRefresh, showHea
         const deleteButton = adminRefresh ? (
           <Button label="Usuń" variant="ghost" onPress={() => confirmDelete(() => appointmentsApi.remove(item.id).then(() => { showToast({ title: "Wizyta usunięta", tone: "success" }); adminRefresh(); }))} />
         ) : null;
-        return statusButtons || deleteButton ? <View style={screenStyles.tableActionStack}>{statusButtons}{deleteButton}</View> : null;
+        const cancelButton = onCancel && item.status !== "Cancelled" && item.status !== "Completed" ? (
+          <Button label="Odwołaj" variant="ghost" onPress={() => onCancel(item)} />
+        ) : null;
+        return statusButtons || deleteButton || cancelButton ? <View style={screenStyles.tableActionStack}>{statusButtons}{cancelButton}{deleteButton}</View> : null;
       }} />
     </StateView>
   );
@@ -1189,11 +1211,11 @@ function Metric({ title, value, icon }: { title: string; value: number; icon: Re
   return <View style={screenStyles.metric}><View>{icon}</View><Text style={screenStyles.metricValue}>{value}</Text><Text style={screenStyles.muted}>{title}</Text></View>;
 }
 
-function confirmDelete(action: () => void) {
+function confirmDelete(action: () => void, message = "Na pewno usunąć ten rekord?", confirmText = "Usuń") {
   if (Platform.OS === "web") {
-    action();
+    if (globalThis.confirm?.(message)) action();
   } else {
-    Alert.alert("Potwierdzenie", "Na pewno usunąć ten rekord?", [{ text: "Anuluj" }, { text: "Usuń", onPress: action }]);
+    Alert.alert("Potwierdzenie", message, [{ text: "Anuluj" }, { text: confirmText, onPress: action }]);
   }
 }
 

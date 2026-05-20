@@ -9,5 +9,7 @@ export const customersApi = {
   create: (body: CustomerRequest) => request<Customer>("/api/Customers", { method: "POST", body: asJson(body) }),
   update: (id: string, body: CustomerRequest) => request<Customer>(`/api/Customers/${id}`, { method: "PUT", body: asJson(body) }),
   updateMe: (body: CustomerRequest) => request<Customer>("/api/Customers/me", { method: "PUT", body: asJson(body) }),
+  removeMe: () => request<void>("/api/Customers/me", { method: "DELETE" }),
+  cancelMyAppointment: (appointmentId: string) => request<Appointment>(`/api/Customers/me/appointments/${appointmentId}/cancel`, { method: "PATCH" }),
   remove: (id: string) => request<void>(`/api/Customers/${id}`, { method: "DELETE" })
 };
