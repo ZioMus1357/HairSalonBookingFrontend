@@ -1,5 +1,5 @@
 import { asJson, request } from "./client";
-import { AppUser, Appointment, Customer, Hairdresser, SalonPhoto, SalonService, UserRole } from "../types/domain";
+import { AppUser, Appointment, Customer, Hairdresser, Review, SalonPhoto, SalonService, UserRole } from "../types/domain";
 
 export const adminApi = {
   users: () => request<AppUser[]>("/api/Admin/users"),
@@ -8,6 +8,7 @@ export const adminApi = {
   services: () => request<SalonService[]>("/api/Admin/services"),
   salonPhotos: () => request<SalonPhoto[]>("/api/Admin/salon-photos"),
   appointments: () => request<Appointment[]>("/api/Admin/appointments"),
+  reviews: () => request<Review[]>("/api/Admin/reviews"),
   assignRole: (userId: string, role: UserRole, customerId?: string, hairdresserId?: string) =>
     request<AppUser>(`/api/Admin/users/${userId}/role`, {
       method: "PUT",

@@ -53,6 +53,18 @@ export type SalonPhoto = BookingEntity & {
   uploadedAt: string;
 };
 
+export type Review = BookingEntity & {
+  customerId?: string | null;
+  appointmentId?: string | null;
+  hairdresserId?: string | null;
+  salonServiceId?: string | null;
+  displayName?: string | null;
+  rating: number;
+  content?: string | null;
+  isVisible: boolean;
+  createdAt: string;
+};
+
 export type AppUser = BookingEntity & {
   provider: string;
   providerUserId: string;
@@ -89,6 +101,14 @@ export type HairdresserRequest = Omit<Hairdresser, "id" | "partitionKey" | "phot
 export type SalonServiceRequest = Omit<SalonService, "id" | "partitionKey">;
 export type SalonPhotoRequest = {
   caption?: string | null;
+};
+
+export type ReviewRequest = {
+  appointmentId?: string | null;
+  hairdresserId?: string | null;
+  salonServiceId?: string | null;
+  rating: number;
+  content?: string | null;
 };
 
 export type HairdresserCustomerHistory = {

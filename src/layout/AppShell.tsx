@@ -20,6 +20,7 @@ const publicNav: NavItem[] = [
   { label: "Usługi", path: "/services", icon: <Sparkles size={17} color={colors.gold} /> },
   { label: "Fryzjerzy", path: "/hairdressers", icon: <Scissors size={17} color={colors.gold} /> },
   { label: "Galeria", path: "/gallery", icon: <ImageIcon size={17} color={colors.gold} /> },
+  { label: "Opinie", path: "/reviews", icon: <Bell size={17} color={colors.gold} /> },
   { label: "Kontakt", path: "/contact", icon: <Bell size={17} color={colors.gold} /> }
 ];
 
@@ -37,6 +38,7 @@ const dashboardNav: NavItem[] = [
   { label: "Fryzjerzy", path: "/admin/hairdressers", icon: <Scissors size={17} color={colors.gold} />, roles: ["Admin"] },
   { label: "Usługi", path: "/admin/services", icon: <Sparkles size={17} color={colors.gold} />, roles: ["Admin"] },
   { label: "Wizyty", path: "/admin/appointments", icon: <CalendarDays size={17} color={colors.gold} />, roles: ["Admin"] },
+  { label: "Opinie", path: "/admin/reviews", icon: <Bell size={17} color={colors.gold} />, roles: ["Admin"] },
   { label: "Galeria admin", path: "/admin/gallery", icon: <ImageIcon size={17} color={colors.gold} />, roles: ["Admin"] }
 ];
 

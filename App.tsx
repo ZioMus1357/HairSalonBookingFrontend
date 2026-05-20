@@ -12,6 +12,7 @@ import {
   AdminDashboardPage,
   AdminGalleryPage,
   AdminHairdressersPage,
+  AdminReviewsPage,
   AdminServicesPage,
   AdminUsersPage,
   BookingPage,
@@ -31,6 +32,7 @@ import {
   NotFoundPage,
   ProfilePage,
   RegisterPage,
+  ReviewsPage,
   ServicesPage
 } from "./src/pages/Screens";
 import { UserRole } from "./src/types/domain";
@@ -47,6 +49,7 @@ const routes: Route[] = [
   { pattern: "/hairdressers", render: () => <HairdressersPage /> },
   { pattern: "/hairdressers/:id", render: (params) => <HairdresserDetailsPage id={params.id} /> },
   { pattern: "/gallery", render: () => <GalleryPage /> },
+  { pattern: "/reviews", render: () => <ReviewsPage /> },
   { pattern: "/contact", render: () => <ContactPage /> },
   { pattern: "/login", render: () => <LoginPage /> },
   { pattern: "/auth/callback", render: () => <AuthCallbackPage /> },
@@ -63,6 +66,7 @@ const routes: Route[] = [
   { pattern: "/admin/hairdressers", roles: ["Admin"], render: () => <AdminHairdressersPage /> },
   { pattern: "/admin/services", roles: ["Admin"], render: () => <AdminServicesPage /> },
   { pattern: "/admin/appointments", roles: ["Admin"], render: () => <AdminAppointmentsPage /> },
+  { pattern: "/admin/reviews", roles: ["Admin"], render: () => <AdminReviewsPage /> },
   { pattern: "/admin/gallery", roles: ["Admin"], render: () => <AdminGalleryPage /> }
 ];
 

@@ -6,4 +6,5 @@ export { customersApi } from "./customers";
 export { galleryApi } from "./gallery";
 export { hairdressersApi } from "./hairdressers";
 export { notificationsApi } from "./notifications";
+export { reviewsApi } from "./reviews";
 export { servicesApi } from "./services";

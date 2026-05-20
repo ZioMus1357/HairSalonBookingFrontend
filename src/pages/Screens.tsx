@@ -3,14 +3,14 @@ import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Clock3, Edit3, 
 import { createElement, useEffect, useMemo, useState } from "react";
 import { Alert, Image, ImageBackground, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { adminApi, appointmentsApi, authApi, AUTH_BASE_URL, customersApi, galleryApi, hairdressersApi, notificationsApi, servicesApi } from "../api";
+import { adminApi, appointmentsApi, authApi, AUTH_BASE_URL, customersApi, galleryApi, hairdressersApi, notificationsApi, reviewsApi, servicesApi } from "../api";
 import { Button, Card, Chip, DataTable, Field, PageHeader, SelectRail, StateView } from "../components/Primitives";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useAsyncData } from "../hooks/useAsyncData";
 import { useRouter } from "../router/RouterContext";
 import { colors, images, radii, shadow } from "../theme/tokens";
-import { Appointment, AppointmentRequest, AppointmentStatus, CreateAppointmentRequest, Customer, CustomerRequest, Hairdresser, HairdresserCustomerHistory, HairdresserRequest, SalonPhoto, SalonService, SalonServiceRequest, UserRole } from "../types/domain";
+import { Appointment, AppointmentRequest, AppointmentStatus, CreateAppointmentRequest, Customer, CustomerRequest, Hairdresser, HairdresserCustomerHistory, HairdresserRequest, Review, ReviewRequest, SalonPhoto, SalonService, SalonServiceRequest, UserRole } from "../types/domain";
 import { addDays, appointmentLabel, dateOnly, fullName, getErrorMessage, money, toLocalDateTime } from "../utils/format";
 
 const fallbackGallery = [
@@ -37,6 +37,7 @@ export function HomePage() {
   const services = useAsyncData(() => servicesApi.all(), []);
   const hairdressers = useAsyncData(() => hairdressersApi.all(), []);
   const photos = useAsyncData(() => galleryApi.all(), []);
+  const reviews = useAsyncData(() => reviewsApi.public(), []);
 
   return (
     <>
@@ -67,7 +68,9 @@ export function HomePage() {
       <PreviewBlock title="Galeria" onPress={() => navigate("/gallery")}>
         <GalleryGrid photos={(photos.data ?? []).slice(0, 6)} />
       </PreviewBlock>
-      <Testimonials />
+      <PreviewBlock title="Opinie" onPress={() => navigate("/reviews")}>
+        <ReviewsGrid reviews={(reviews.data ?? []).slice(0, 3)} loading={reviews.loading} error={reviews.error} />
+      </PreviewBlock>
     </>
   );
 }
@@ -195,6 +198,16 @@ export function GalleryPage() {
       <StateView loading={data.loading} error={data.error} empty={false}>
         <GalleryGrid photos={data.data ?? []} />
       </StateView>
+    </>
+  );
+}
+
+export function ReviewsPage() {
+  const data = useAsyncData(() => reviewsApi.public(), []);
+  return (
+    <>
+      <PageHeader kicker="Opinie" title="Doświadczenia klientów" subtitle="Publiczne recenzje wizyt w Maison Noir. Pokazujemy wyłącznie opinie oznaczone jako widoczne." image={images.hairOne} />
+      <ReviewsGrid reviews={data.data ?? []} loading={data.loading} error={data.error} />
     </>
   );
 }
@@ -373,7 +386,13 @@ export function BookingPage() {
 
 export function MyVisitsPage() {
   const data = useAsyncData(() => customersApi.myAppointments(), []);
-  return <VisitsView title="Moje wizyty" appointments={data.data ?? []} loading={data.loading} error={data.error} />;
+  const reviews = useAsyncData(() => reviewsApi.mine(), []);
+  return (
+    <>
+      <VisitsView title="Moje wizyty" appointments={data.data ?? []} loading={data.loading} error={data.error} />
+      <CustomerReviewPanel appointments={data.data ?? []} reviews={reviews.data ?? []} appointmentsLoading={data.loading} reviewsLoading={reviews.loading} error={reviews.error} onSaved={reviews.refresh} />
+    </>
+  );
 }
 
 export function ProfilePage() {
@@ -690,6 +709,38 @@ export function AdminAppointmentsPage() {
   return <VisitsView title="Wszystkie wizyty" appointments={data.data ?? []} loading={data.loading || customers.loading} error={data.error || customers.error} adminRefresh={data.refresh} onStatusChange={changeStatus} customers={customers.data ?? []} />;
 }
 
+export function AdminReviewsPage() {
+  const data = useAsyncData(() => adminApi.reviews(), []);
+  const { showToast } = useToast();
+  const refreshAfter = (promise: Promise<unknown>, success: string) =>
+    promise
+      .then(() => {
+        showToast({ title: success, tone: "success" });
+        data.refresh();
+      })
+      .catch((err) => showToast({ title: "Nie udało się zmienić opinii", message: getErrorMessage(err), tone: "error" }));
+
+  return (
+    <>
+      <PageHeader kicker="Admin" title="Moderacja opinii" subtitle="Ukrywaj, przywracaj albo usuwaj recenzje klientów. Publicznie widoczne są tylko opinie z aktywną widocznością." image={images.hairTwo} />
+      <StateView loading={data.loading} error={data.error} empty={(data.data ?? []).length === 0}>
+        <DataTable items={data.data ?? []} columns={[
+          { title: "Autor", render: (item) => item.displayName || item.customerId || "Klient" },
+          { title: "Ocena", render: (item) => stars(item.rating) },
+          { title: "Treść", render: (item) => item.content || "Brak treści" },
+          { title: "Widoczność", render: (item) => item.isVisible ? "Widoczna" : "Ukryta" },
+          { title: "Data", render: (item) => item.createdAt ? toLocalDateTime(item.createdAt) : "Brak" }
+        ]} actions={(item) => (
+          <View style={screenStyles.tableActionStack}>
+            <Button label={item.isVisible ? "Ukryj" : "Przywróć"} variant="ghost" onPress={() => refreshAfter(item.isVisible ? reviewsApi.hide(item.id) : reviewsApi.show(item.id), item.isVisible ? "Opinia ukryta" : "Opinia przywrócona")} />
+            <Button label="Usuń" variant="ghost" onPress={() => confirmDelete(() => refreshAfter(reviewsApi.remove(item.id), "Opinia usunięta"))} />
+          </View>
+        )} />
+      </StateView>
+    </>
+  );
+}
+
 export function AdminGalleryPage() {
   const data = useAsyncData(() => adminApi.salonPhotos(), []);
   const { showToast } = useToast();
@@ -776,6 +827,82 @@ function GalleryGrid({ photos, onDelete }: { photos: SalonPhoto[]; onDelete?: (i
 
 function Testimonials() {
   return <View style={screenStyles.grid}>{["Minimalistyczne miejsce i perfekcyjne cięcie.", "Najlepszy booking beauty, z jakiego korzystałam.", "Spokojny luksus bez nadęcia."].map((text, index) => <Card key={text}><Text style={screenStyles.cardTitle}>★★★★★</Text><Text style={screenStyles.muted}>{text}</Text><Text style={screenStyles.goldText}>Klientka #{index + 1}</Text></Card>)}</View>;
+}
+
+function stars(rating: number) {
+  const value = Math.max(1, Math.min(5, Math.round(rating || 0)));
+  return "★".repeat(value) + "☆".repeat(5 - value);
+}
+
+function ReviewsGrid({ reviews, loading, error }: { reviews: Review[]; loading?: boolean; error?: string }) {
+  return (
+    <StateView loading={loading} error={error} empty={reviews.length === 0}>
+      <View style={screenStyles.grid}>
+        {reviews.map((review) => (
+          <Card key={review.id}>
+            <Text style={screenStyles.reviewStars}>{stars(review.rating)}</Text>
+            <Text style={screenStyles.cardTitle}>{review.displayName || "Klient Maison Noir"}</Text>
+            <Text style={screenStyles.muted}>{review.content || "Klient pozostawił ocenę bez dodatkowego komentarza."}</Text>
+            <Text style={screenStyles.goldText}>{review.createdAt ? toLocalDateTime(review.createdAt) : "Opinia klienta"}</Text>
+          </Card>
+        ))}
+      </View>
+    </StateView>
+  );
+}
+
+function CustomerReviewPanel({ appointments, reviews, appointmentsLoading, reviewsLoading, error, onSaved }: { appointments: Appointment[]; reviews: Review[]; appointmentsLoading?: boolean; reviewsLoading?: boolean; error?: string; onSaved: () => void }) {
+  const { showToast } = useToast();
+  const [appointmentId, setAppointmentId] = useState("");
+  const [rating, setRating] = useState("5");
+  const [content, setContent] = useState("");
+  const completedAppointments = appointments.filter((appointment) => appointment.status === "Completed");
+  const reviewedAppointmentIds = new Set(reviews.map((review) => review.appointmentId).filter(Boolean));
+  const appointmentOptions = completedAppointments.map((appointment) => ({
+    label: `${toLocalDateTime(appointment.startAt)} · ${shortId(appointment.id)}`,
+    value: appointment.id,
+    disabled: reviewedAppointmentIds.has(appointment.id)
+  }));
+  const selectedAppointment = appointments.find((appointment) => appointment.id === appointmentId);
+  const submit = () => {
+    const numericRating = Number(rating);
+    if (numericRating < 1 || numericRating > 5 || !content.trim()) {
+      showToast({ title: "Uzupełnij opinię", message: "Ocena od 1 do 5 i treść opinii są wymagane.", tone: "error" });
+      return;
+    }
+
+    const body: ReviewRequest = {
+      appointmentId: appointmentId || undefined,
+      hairdresserId: selectedAppointment?.hairdresserId,
+      salonServiceId: selectedAppointment?.salonServiceId,
+      rating: numericRating,
+      content: content.trim()
+    };
+
+    reviewsApi.create(body)
+      .then(() => {
+        showToast({ title: "Opinia dodana", message: "Dziękujemy za ocenę wizyty.", tone: "success" });
+        setAppointmentId("");
+        setRating("5");
+        setContent("");
+        onSaved();
+      })
+      .catch((err) => showToast({ title: "Nie dodano opinii", message: getErrorMessage(err), tone: "error" }));
+  };
+
+  return (
+    <Card>
+      <Text style={screenStyles.cardTitle}>Dodaj opinię po wizycie</Text>
+      <Text style={screenStyles.muted}>Jeśli wybierzesz wizytę, backend sprawdzi, czy należy do Twojego konta i czy ma status zakończony.</Text>
+      <StateView loading={appointmentsLoading || reviewsLoading} error={error} empty={false}>
+        <SelectRail label="Powiązana wizyta" value={appointmentId} options={[{ label: "Bez powiązania", value: "" }, ...appointmentOptions]} onChange={setAppointmentId} />
+        <SelectRail label="Ocena" value={rating} options={[1, 2, 3, 4, 5].map((value) => ({ label: stars(value), value: String(value) }))} onChange={setRating} />
+        <Field label="Treść opinii" value={content} onChangeText={setContent} multiline placeholder="Napisz kilka zdań o wizycie..." />
+        <Button label="Dodaj opinię" icon={<Plus size={17} color={colors.ink} />} onPress={submit} />
+      </StateView>
+      {reviews.length ? <View style={screenStyles.reviewList}>{reviews.map((review) => <View key={review.id} style={screenStyles.historyVisit}><Text style={screenStyles.historyVisitTitle}>{stars(review.rating)} · {review.isVisible ? "Widoczna" : "Ukryta"}</Text><Text style={screenStyles.muted}>{review.content || "Brak treści"}</Text></View>)}</View> : null}
+    </Card>
+  );
 }
 
 function appointmentUpdateBody(appointment: Appointment, status: AppointmentStatus): AppointmentRequest {
@@ -1112,6 +1239,16 @@ const screenStyles = StyleSheet.create({
     color: colors.gold,
     fontWeight: "900",
     marginTop: 12
+  },
+  reviewStars: {
+    color: colors.gold,
+    fontSize: 22,
+    fontWeight: "900",
+    marginBottom: 10
+  },
+  reviewList: {
+    gap: 10,
+    marginTop: 14
   },
   row: {
     flexDirection: "row",
