@@ -85,6 +85,10 @@ export function useSignalR() {
       connection.current = hub;
       setStatus("online");
 
+      if (auth.role === "Admin") {
+        hub.invoke("JoinAdminGroup").catch(() => undefined);
+      }
+
       const hairdresserId = auth.user?.hairdresserId;
       if (hairdresserId) {
         hub.invoke("JoinHairdresserGroup", hairdresserId).catch(() => undefined);
