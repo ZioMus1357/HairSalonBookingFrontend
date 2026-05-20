@@ -50,12 +50,29 @@ export function useSignalR() {
       showToast({ title: "Test powiadomień", message: "Powiadomienie testowe dotarło do aplikacji.", tone: "info" });
     };
 
-    hub.on("appointmentBooked", notifyAppointmentBooked);
-    hub.on("AppointmentBooked", notifyAppointmentBooked);
-    hub.on("hairdresserAppointmentBooked", notifyHairdresserAppointmentBooked);
-    hub.on("HairdresserAppointmentBooked", notifyHairdresserAppointmentBooked);
-    hub.on("testNotification", notifyTest);
-    hub.on("TestNotification", notifyTest);
+    [
+      "appointmentBooked",
+      "AppointmentBooked",
+      "appointmentCreated",
+      "AppointmentCreated",
+      "newAppointment",
+      "NewAppointment",
+      "bookingCreated",
+      "BookingCreated",
+      "bookingNotification",
+      "BookingNotification"
+    ].forEach((eventName) => hub.on(eventName, notifyAppointmentBooked));
+
+    [
+      "hairdresserAppointmentBooked",
+      "HairdresserAppointmentBooked",
+      "hairdresserAppointmentCreated",
+      "HairdresserAppointmentCreated",
+      "hairdresserNewAppointment",
+      "HairdresserNewAppointment"
+    ].forEach((eventName) => hub.on(eventName, notifyHairdresserAppointmentBooked));
+
+    ["testNotification", "TestNotification"].forEach((eventName) => hub.on(eventName, notifyTest));
 
     setStatus("connecting");
     hub.start().then(() => {
