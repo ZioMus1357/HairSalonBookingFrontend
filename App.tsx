@@ -1,6 +1,7 @@
 import "react-native-reanimated";
 import { StatusBar } from "expo-status-bar";
 import { ReactElement, useMemo } from "react";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { ToastProvider } from "./src/context/ToastContext";
 import { AppShell } from "./src/layout/AppShell";
@@ -101,15 +102,17 @@ function RouteRenderer() {
 
 export default function App() {
   return (
-    <RouterProvider>
-      <ToastProvider>
-        <AuthProvider>
-          <StatusBar style="dark" />
-          <AppShell>
-            <RouteRenderer />
-          </AppShell>
-        </AuthProvider>
-      </ToastProvider>
-    </RouterProvider>
+    <SafeAreaProvider>
+      <RouterProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <StatusBar style="dark" />
+            <AppShell>
+              <RouteRenderer />
+            </AppShell>
+          </AuthProvider>
+        </ToastProvider>
+      </RouterProvider>
+    </SafeAreaProvider>
   );
 }

@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { Bell, CalendarDays, Grid2X2, Home, Image as ImageIcon, Lock, Menu, Scissors, Settings, Sparkles, UserRound, UsersRound, X } from "lucide-react-native";
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button, Chip } from "../components/Primitives";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -58,6 +59,7 @@ const roleHomePath = (role: UserRole | "Guest") => {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const isDesktop = width >= 980;
   const { path, navigate } = useRouter();
   const auth = useAuth();
@@ -114,7 +116,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <View style={styles.app}>
       {isDesktop && inDashboard ? nav : null}
       <View style={styles.main}>
-        <View style={styles.topbar}>
+        <View style={[styles.topbar, { paddingTop: styles.topbar.paddingTop + insets.top }]}>
           {showMenuButton ? (
             <Pressable style={styles.menuButton} onPress={() => setOpen((value) => !value)}>
               {open ? <X color={colors.ink} size={21} /> : <Menu color={colors.ink} size={21} />}
@@ -150,10 +152,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             )}
           </View>
         </View>
-        {showDrawer ? <View style={styles.mobileNav}>{nav}</View> : null}
-        <ScrollView contentContainerStyle={styles.content}>{children}</ScrollView>
+        {showDrawer ? <View style={[styles.mobileNav, { top: 70 + insets.top }]}>{nav}</View> : null}
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 96 + insets.bottom }]}>{children}</ScrollView>
         {!isDesktop && inDashboard ? (
-          <View style={styles.bottomNav}>
+          <View style={[styles.bottomNav, { bottom: 12 + insets.bottom }]}>
             {items.slice(0, 5).map((item) => (
               <Pressable key={item.path} onPress={() => navigate(item.path)} style={styles.bottomItem}>
                 {item.icon}
