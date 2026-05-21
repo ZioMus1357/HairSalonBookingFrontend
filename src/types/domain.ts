@@ -86,6 +86,12 @@ export type AuthMe = {
   customer?: Customer | null;
 };
 
+export type AssignUserRoleRequest = {
+  role: UserRole;
+  specialization?: string | null;
+  hairdresserId?: string | null;
+};
+
 export type AppointmentRequest = {
   customerId: string;
   hairdresserId: string;

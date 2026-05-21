@@ -702,22 +702,27 @@ export function AdminDashboardPage() {
 
 export function AdminUsersPage() {
   const data = useAsyncData(() => adminApi.users(), []);
-  const customers = useAsyncData(() => adminApi.customers(), []);
   const hairdressers = useAsyncData(() => adminApi.hairdressers(), []);
   const { showToast } = useToast();
   const [selectedUser, setSelectedUser] = useState<AppUser | null>(null);
   const [role, setRole] = useState<UserRole>("Customer");
-  const [customerId, setCustomerId] = useState("");
   const [hairdresserId, setHairdresserId] = useState("");
   const selectUser = (user: AppUser) => {
     setSelectedUser(user);
     setRole(user.role);
-    setCustomerId(user.customerId ?? "");
     setHairdresserId(user.hairdresserId ?? "");
   };
   const save = () => {
     if (!selectedUser) return;
-    adminApi.assignRole(selectedUser.id, role, role === "Customer" ? customerId || undefined : undefined, role === "Hairdresser" ? hairdresserId || undefined : undefined)
+    if (role === "Hairdresser" && !hairdresserId) {
+      showToast({ title: "Wybierz fryzjera", message: "Rola fryzjera musi być powiązana z istniejącym profilem fryzjera.", tone: "error" });
+      return;
+    }
+
+    adminApi.assignRole(selectedUser.id, {
+      role,
+      hairdresserId: role === "Hairdresser" ? hairdresserId : undefined
+    })
       .then(() => {
         showToast({ title: "Użytkownik zaktualizowany", tone: "success" });
         setSelectedUser(null);
@@ -727,7 +732,7 @@ export function AdminUsersPage() {
   };
   return (
     <>
-      <PageHeader kicker="Admin" title="Użytkownicy i role" subtitle="Zarządzaj dostępem do aplikacji i przypisuj konta do klientów, fryzjerów lub administratorów." image={images.hero} />
+      <PageHeader kicker="Admin" title="Użytkownicy i role" subtitle="Zarządzaj dostępem do aplikacji i łącz konta fryzjerów z gotowymi profilami zespołu." image={images.hero} />
       <StateView loading={data.loading} error={data.error} empty={(data.data ?? []).length === 0}>
         <DataTable items={data.data ?? []} columns={[{ title: "Użytkownik", render: (u) => u.displayName || u.email || "Użytkownik" }, { title: "Email", render: (u) => u.email }, { title: "Rola", render: (u) => u.role }]} actions={(user) => <View style={screenStyles.tableActionStack}><Button label="Edytuj" variant="ghost" onPress={() => selectUser(user)} /><Button label="Usuń" variant="ghost" onPress={() => confirmDelete(() => adminApi.removeUser(user.id).then(() => { showToast({ title: "Użytkownik usunięty", tone: "success" }); if (selectedUser?.id === user.id) setSelectedUser(null); data.refresh(); }).catch((err) => showToast({ title: "Nie usunięto użytkownika", message: getErrorMessage(err), tone: "error" })), "Na pewno usunąć tego użytkownika?", "Usuń użytkownika")} /></View>} />
       </StateView>
@@ -735,11 +740,11 @@ export function AdminUsersPage() {
         <Card>
           <Text style={screenStyles.cardTitle}>Edycja użytkownika: {selectedUser.displayName || selectedUser.email}</Text>
           <SelectDropdown label="Rola" value={role} options={["Customer", "Hairdresser", "Admin"].map((item) => ({ label: item, value: item }))} onChange={(v) => setRole(v as UserRole)} />
-          {role === "Customer" ? <SelectDropdown label="Powiązany klient" value={customerId} options={[{ label: "Brak powiązania", value: "" }, ...(customers.data ?? []).map((item) => ({ label: `${fullName(item)} · ${item.email}`, value: item.id }))]} onChange={setCustomerId} /> : null}
-          {role === "Hairdresser" ? <SelectDropdown label="Powiązany fryzjer" value={hairdresserId} options={[{ label: "Brak powiązania", value: "" }, ...(hairdressers.data ?? []).map((item) => ({ label: `${fullName(item)} · ${item.specialization || "profil"}`, value: item.id }))]} onChange={setHairdresserId} /> : null}
+          {role === "Customer" ? <Text style={screenStyles.muted}>Profil klienta jest utrzymywany razem z kontem klienta.</Text> : null}
+          {role === "Hairdresser" ? <SelectDropdown label="Powiązany fryzjer" value={hairdresserId} options={[{ label: "Wybierz profil fryzjera", value: "" }, ...(hairdressers.data ?? []).map((item) => ({ label: `${fullName(item)} · ${item.specialization || "profil"}`, value: item.id }))]} onChange={setHairdresserId} /> : null}
           {role === "Admin" ? <Text style={screenStyles.muted}>Administrator nie wymaga powiązania z klientem ani fryzjerem.</Text> : null}
           <View style={screenStyles.actions}><Button label="Zapisz zmiany" onPress={save} /><Button label="Anuluj" variant="ghost" onPress={() => setSelectedUser(null)} /></View>
-          <Text style={screenStyles.muted}>Możesz zmienić rolę użytkownika, powiązać konto z profilem klienta albo fryzjera, a z listy usunąć konto, które nie powinno mieć dostępu do aplikacji.</Text>
+          <Text style={screenStyles.muted}>Zmiana na fryzjera przypina konto do wybranego profilu zespołu. Z listy możesz też usunąć konto, które nie powinno mieć dostępu do aplikacji.</Text>
         </Card>
       ) : null}
     </>
