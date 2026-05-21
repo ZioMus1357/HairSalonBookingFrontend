@@ -11,6 +11,10 @@
       "bundler": "metro",
       "output": "single"
     },
-    "plugins": ["expo-document-picker"]
+    "plugins": [
+      "expo-document-picker",
+      "expo-web-browser",
+      "expo-secure-store"
+    ]
   }
 }

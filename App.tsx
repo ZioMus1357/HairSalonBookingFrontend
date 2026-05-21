@@ -1,4 +1,5 @@
 import "react-native-reanimated";
+import * as WebBrowser from "expo-web-browser";
 import { StatusBar } from "expo-status-bar";
 import { ReactElement, useMemo } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -37,6 +38,8 @@ import {
   ServicesPage
 } from "./src/pages/Screens";
 import { UserRole } from "./src/types/domain";
+
+WebBrowser.maybeCompleteAuthSession();
 
 type Route = {
   pattern: string;

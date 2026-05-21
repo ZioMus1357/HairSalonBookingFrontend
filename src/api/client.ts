@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import { getMobileEasyAuthToken } from "./mobileAuthSession";
 
 export const CLOUD_BACKEND_URL = "https://booking-api-fdgxg9cbc6chbqc8.francecentral-01.azurewebsites.net";
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? CLOUD_BACKEND_URL;
@@ -18,12 +19,14 @@ type RequestOptions = RequestInit & {
 };
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const mobileAuthToken = await getMobileEasyAuthToken();
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     credentials: "include",
     headers: {
       Accept: "application/json",
       ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
+      ...(mobileAuthToken ? { "X-ZUMO-AUTH": mobileAuthToken } : {}),
       ...options.headers
     }
   });

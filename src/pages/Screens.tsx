@@ -1,4 +1,5 @@
 import * as DocumentPicker from "expo-document-picker";
+import * as Google from "expo-auth-session/providers/google";
 import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Clock3, Edit3, Image as ImageIcon, Plus, RefreshCcw, Scissors, Trash2, Upload, UserRound, UsersRound } from "lucide-react-native";
 import { createElement, useEffect, useMemo, useState } from "react";
 import { Alert, Image, ImageBackground, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
@@ -11,7 +12,7 @@ import { useAsyncData } from "../hooks/useAsyncData";
 import { useRouter } from "../router/RouterContext";
 import { colors, images, radii, shadow } from "../theme/tokens";
 import { AppUser, Appointment, AppointmentRequest, AppointmentStatus, CreateAppointmentRequest, Customer, CustomerRequest, Hairdresser, HairdresserCustomerHistory, HairdresserRequest, Review, ReviewRequest, SalonPhoto, SalonService, SalonServiceRequest, UserRole } from "../types/domain";
-import { addDays, appointmentLabel, dateOnly, fullName, getErrorMessage, money, toLocalDateTime } from "../utils/format";
+import { addDays, appointmentLabel, dateOnly, fullName, getErrorMessage, money, roleLabel, toLocalDateTime } from "../utils/format";
 
 const fallbackGallery = [
   { title: "Soft blonde layers", image: images.hairOne },
@@ -20,6 +21,15 @@ const fallbackGallery = [
 ];
 
 const appointmentStatuses: AppointmentStatus[] = ["Booked", "Confirmed", "Completed", "Cancelled"];
+const salonOpenMinutes = 9 * 60;
+const salonCloseMinutes = 17 * 60;
+const slotFitsSalonHours = (value: string, durationMinutes = 0) => {
+  const start = new Date(value);
+  const end = new Date(start.getTime() + durationMinutes * 60_000);
+  const startMinutes = start.getHours() * 60 + start.getMinutes();
+  const endMinutes = end.getHours() * 60 + end.getMinutes();
+  return start.toDateString() === end.toDateString() && startMinutes >= salonOpenMinutes && endMinutes <= salonCloseMinutes;
+};
 const customerLabel = (customerId?: string | null, customers: Customer[] = []) => {
   const customer = customers.find((item) => item.id === customerId);
   return customer ? fullName(customer) : "Klient";
@@ -243,8 +253,7 @@ export function ContactPage() {
             <Text style={screenStyles.contactLine}>+48 123 123 123</Text>
             <Text style={screenStyles.contactLine}>kontakt@maison-noir.pl</Text>
             <View style={screenStyles.contactDivider} />
-            <Text style={screenStyles.muted}>Poniedziałek-Piątek 9:00-20:00</Text>
-            <Text style={screenStyles.muted}>Sobota 9:00-16:00</Text>
+            <Text style={screenStyles.muted}>Codziennie 9:00-17:00</Text>
           </Card>
         </View>
         <View style={[screenStyles.mapMock, compact && screenStyles.contactFullWidth]}>
@@ -274,16 +283,120 @@ export function LoginPage() {
             <Text style={screenStyles.authNoticeText}>Logowanie Google/GitHub działa przez opublikowaną usługę. Jeśli testujesz lokalnie, upewnij się, że adres logowania wskazuje wdrożoną aplikację.</Text>
           </View>
         ) : null}
-        <View style={screenStyles.providerLinks}>
-          <Pressable onPress={() => auth.login("google")} style={screenStyles.providerLink}>
-            <Text style={screenStyles.providerText}>Google</Text>
-          </Pressable>
-          <Pressable onPress={() => auth.login("github")} style={screenStyles.providerLink}>
-            <Text style={screenStyles.providerText}>GitHub</Text>
-          </Pressable>
-        </View>
+        {Platform.OS === "web" ? (
+          <View style={screenStyles.providerLinks}>
+            <Pressable onPress={() => auth.login("google")} style={screenStyles.providerLink}>
+              <Text style={screenStyles.providerText}>Google</Text>
+            </Pressable>
+            <Pressable onPress={() => auth.login("github")} style={screenStyles.providerLink}>
+              <Text style={screenStyles.providerText}>GitHub</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <NativeGoogleLogin />
+        )}
       </Card>
     </View>
+  );
+}
+
+function NativeGoogleLogin() {
+  const { showToast } = useToast();
+  const clientId = Platform.select({
+    ios: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    android: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+    default: undefined
+  });
+
+  if (!clientId) {
+    const variableName = Platform.OS === "ios" ? "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID" : "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID";
+    return (
+      <Pressable
+        onPress={() => showToast({ title: "Google mobile nie jest skonfigurowane", message: `Ustaw ${variableName} i uruchom Expo ponownie.`, tone: "error" })}
+        style={screenStyles.providerLink}
+      >
+        <Text style={screenStyles.providerText}>Google</Text>
+      </Pressable>
+    );
+  }
+
+  return <ConfiguredNativeGoogleLogin clientId={clientId} />;
+}
+
+function ConfiguredNativeGoogleLogin({ clientId }: { clientId: string }) {
+  const { loginWithGoogleIdToken, register } = useAuth();
+  const { navigate } = useRouter();
+  const { showToast } = useToast();
+  const [busy, setBusy] = useState(false);
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest(
+    {
+      iosClientId: clientId,
+      androidClientId: clientId,
+      selectAccount: true
+    },
+    {
+      scheme: "maisonnoir",
+      path: "auth/callback"
+    }
+  );
+
+  useEffect(() => {
+    if (response?.type !== "success") {
+      if (response?.type === "error") {
+        setBusy(false);
+        showToast({ title: "Logowanie Google nieudane", message: response.error?.message ?? "Google nie zwrócił sesji logowania.", tone: "error" });
+      }
+      return;
+    }
+
+    const idToken = response.params.id_token;
+    if (!idToken) {
+      setBusy(false);
+      showToast({ title: "Logowanie Google nieudane", message: "Google nie zwrócił tokenu tożsamości.", tone: "error" });
+      return;
+    }
+
+    loginWithGoogleIdToken(idToken)
+      .then(async (principal) => {
+        if (!principal) {
+          throw new Error("Azure Easy Auth nie zwrócił profilu po zalogowaniu.");
+        }
+
+        let role = principal.user?.role;
+        if (!principal.user) {
+          await register(principal.name, principal.email);
+          showToast({ title: "Profil utworzony", message: "Konto klienta zostało połączone z logowaniem Google.", tone: "success" });
+          navigate("/profile?onboarding=1");
+          return;
+        }
+
+        showToast({ title: "Zalogowano", message: `Rola: ${roleLabel(role)}`, tone: "success" });
+        navigate(role === "Admin" ? "/admin" : role === "Hairdresser" ? "/hairdresser/dashboard" : "/booking");
+      })
+      .catch((err) => showToast({ title: "Logowanie Google nieudane", message: getErrorMessage(err), tone: "error" }))
+      .finally(() => setBusy(false));
+  }, [loginWithGoogleIdToken, navigate, register, response, showToast]);
+
+  return (
+    <Pressable
+      disabled={!request || busy}
+      onPress={() => {
+        setBusy(true);
+        promptAsync()
+          .then((result) => {
+            if (result.type !== "success") {
+              setBusy(false);
+            }
+          })
+          .catch((err) => {
+            setBusy(false);
+            showToast({ title: "Logowanie Google nieudane", message: getErrorMessage(err), tone: "error" });
+          });
+      }}
+      style={[screenStyles.providerLink, (!request || busy) && screenStyles.providerLinkDisabled]}
+    >
+      <Text style={screenStyles.providerText}>{busy ? "Logowanie..." : "Google"}</Text>
+    </Pressable>
   );
 }
 
@@ -316,7 +429,7 @@ export function AuthCallbackPage() {
           navigate("/profile?onboarding=1");
           return;
         } else {
-          showToast({ title: "Zalogowano", message: `Rola: ${role}`, tone: "success" });
+          showToast({ title: "Zalogowano", message: `Rola: ${roleLabel(role)}`, tone: "success" });
         }
 
         navigate(role === "Admin" ? "/admin" : role === "Hairdresser" ? "/hairdresser/dashboard" : "/booking");
@@ -370,13 +483,7 @@ export function BookingPage() {
   }, [serviceSort, services.data, shortServicesOnly]);
   const slots = useAsyncData(() => (hairdresserId ? hairdressersApi.availability(hairdresserId, day) : Promise.resolve([])), [hairdresserId, day]);
   const customerId = auth.user?.customerId ?? "";
-  const availableSlots = (slots.data ?? []).filter((item) => {
-    if (!selectedService) return true;
-    const start = new Date(item).getTime();
-    const end = start + selectedService.durationMinutes * 60_000;
-    const close = new Date(`${item.slice(0, 10)}T17:00:00.000Z`).getTime();
-    return end <= close;
-  });
+  const availableSlots = (slots.data ?? []).filter((item) => slotFitsSalonHours(item, selectedService?.durationMinutes));
 
   if (!auth.isAuthenticated) {
     return <Gate title="Musisz się zalogować, aby zarezerwować wizytę" message="Rezerwacja wymaga profilu klienta połączonego z kontem Google albo GitHub." />;
@@ -399,11 +506,11 @@ export function BookingPage() {
 
   return (
     <>
-      <PageHeader kicker="Rezerwacja" title="Umów wizytę" subtitle="Wybierz usługę, stylistę i dogodny termin. Po potwierdzeniu zapiszemy wizytę w Twoim profilu klienta." image={images.hero} />
+      <PageHeader kicker="Rezerwacja" title="Umów wizytę" subtitle="Wybierz usługę, stylistę i termin w godzinach 9:00-17:00. Po potwierdzeniu zapiszemy wizytę w Twoim profilu klienta." image={images.hero} />
       <View style={screenStyles.stepper}>{[1, 2, 3, 4, 5].map((n) => <Chip key={n} label={`Krok ${n}`} active={step === n} onPress={() => setStep(n)} />)}</View>
       {step === 1 ? <><View style={screenStyles.filters}><SelectRail label="Sortowanie usług" value={serviceSort} options={[{ label: "Polecane", value: "recommended" }, { label: "Cena rosnąco", value: "priceAsc" }, { label: "Cena malejąco", value: "priceDesc" }, { label: "Czas trwania", value: "duration" }]} onChange={setServiceSort} /><Chip label="Do 60 minut" active={shortServicesOnly} onPress={() => setShortServicesOnly((value) => !value)} /></View><ServiceGrid services={bookingServices} loading={services.loading} error={services.error} selectedId={serviceId} onSelect={(id) => { setServiceId(id); setStep(2); }} /></> : null}
       {step === 2 ? <HairdresserGrid hairdressers={(hairdressers.data ?? []).filter((item) => item.isActive)} loading={hairdressers.loading} error={hairdressers.error} selectedId={hairdresserId} onProfile={() => undefined} onBook={(id) => { setHairdresserId(id); setStep(3); }} /> : null}
-      {step === 3 ? <Card><Text style={screenStyles.cardTitle}>Wybierz datę</Text><DatePickerField label="Data wizyty" value={day} onChange={setDay} /><SelectRail label="Szybki wybór" value={day} options={[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => ({ label: addDays(n), value: addDays(n) }))} onChange={setDay} /><Button label="Pokaż dostępne godziny" onPress={() => setStep(4)} /></Card> : null}
+      {step === 3 ? <Card><Text style={screenStyles.cardTitle}>Wybierz datę</Text><Text style={screenStyles.muted}>Salon jest otwarty codziennie od 9:00 do 17:00.</Text><DatePickerField label="Data wizyty" value={day} onChange={setDay} /><SelectRail label="Szybki wybór" value={day} options={[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => ({ label: addDays(n), value: addDays(n) }))} onChange={setDay} /><Button label="Pokaż dostępne godziny" onPress={() => setStep(4)} /></Card> : null}
       {step === 4 ? <Card><Text style={screenStyles.cardTitle}>Wybierz godzinę</Text><StateView loading={slots.loading} error={slots.error} empty={availableSlots.length === 0}><View style={screenStyles.slotWrap}>{availableSlots.map((item) => <Chip key={item} label={new Date(item).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })} active={slot === item} onPress={() => { setSlot(item); setStep(5); }} />)}</View></StateView></Card> : null}
       {step === 5 ? <Card><Text style={screenStyles.cardTitle}>Podsumowanie</Text><Summary rows={[["Usługa", selectedService ? `${selectedService.name} · ${money(selectedService.price)}` : "Brak"], ["Fryzjer", fullName(selectedHairdresser)], ["Termin", slot ? toLocalDateTime(slot) : "Brak"], ["Czas", selectedService ? `${selectedService.durationMinutes} min` : "Brak"], ["Klient", customerName]]} /><Field label="Notatka" value={notes} onChangeText={setNotes} multiline /><Button label="Potwierdź rezerwację" icon={<Check size={17} color={colors.ink} />} onPress={create} /></Card> : null}
     </>
@@ -734,12 +841,12 @@ export function AdminUsersPage() {
     <>
       <PageHeader kicker="Admin" title="Użytkownicy i role" subtitle="Zarządzaj dostępem do aplikacji i łącz konta fryzjerów z gotowymi profilami zespołu." image={images.hero} />
       <StateView loading={data.loading} error={data.error} empty={(data.data ?? []).length === 0}>
-        <DataTable items={data.data ?? []} columns={[{ title: "Użytkownik", render: (u) => u.displayName || u.email || "Użytkownik" }, { title: "Email", render: (u) => u.email }, { title: "Rola", render: (u) => u.role }]} actions={(user) => <View style={screenStyles.tableActionStack}><Button label="Edytuj" variant="ghost" onPress={() => selectUser(user)} /><Button label="Usuń" variant="ghost" onPress={() => confirmDelete(() => adminApi.removeUser(user.id).then(() => { showToast({ title: "Użytkownik usunięty", tone: "success" }); if (selectedUser?.id === user.id) setSelectedUser(null); data.refresh(); }).catch((err) => showToast({ title: "Nie usunięto użytkownika", message: getErrorMessage(err), tone: "error" })), "Na pewno usunąć tego użytkownika?", "Usuń użytkownika")} /></View>} />
+        <DataTable items={data.data ?? []} columns={[{ title: "Użytkownik", render: (u) => u.displayName || u.email || "Użytkownik" }, { title: "Email", render: (u) => u.email }, { title: "Rola", render: (u) => roleLabel(u.role) }]} actions={(user) => <View style={screenStyles.tableActionStack}><Button label="Edytuj" variant="ghost" onPress={() => selectUser(user)} /><Button label="Usuń" variant="ghost" onPress={() => confirmDelete(() => adminApi.removeUser(user.id).then(() => { showToast({ title: "Użytkownik usunięty", tone: "success" }); if (selectedUser?.id === user.id) setSelectedUser(null); data.refresh(); }).catch((err) => showToast({ title: "Nie usunięto użytkownika", message: getErrorMessage(err), tone: "error" })), "Na pewno usunąć tego użytkownika?", "Usuń użytkownika")} /></View>} />
       </StateView>
       {selectedUser ? (
         <Card>
           <Text style={screenStyles.cardTitle}>Edycja użytkownika: {selectedUser.displayName || selectedUser.email}</Text>
-          <SelectDropdown label="Rola" value={role} options={["Customer", "Hairdresser", "Admin"].map((item) => ({ label: item, value: item }))} onChange={(v) => setRole(v as UserRole)} />
+          <SelectDropdown label="Rola" value={role} options={["Customer", "Hairdresser", "Admin"].map((item) => ({ label: roleLabel(item as UserRole), value: item }))} onChange={(v) => setRole(v as UserRole)} />
           {role === "Customer" ? <Text style={screenStyles.muted}>Profil klienta jest utrzymywany razem z kontem klienta.</Text> : null}
           {role === "Hairdresser" ? <SelectDropdown label="Powiązany fryzjer" value={hairdresserId} options={[{ label: "Wybierz profil fryzjera", value: "" }, ...(hairdressers.data ?? []).map((item) => ({ label: `${fullName(item)} · ${item.specialization || "profil"}`, value: item.id }))]} onChange={setHairdresserId} /> : null}
           {role === "Admin" ? <Text style={screenStyles.muted}>Administrator nie wymaga powiązania z klientem ani fryzjerem.</Text> : null}
@@ -1345,6 +1452,9 @@ const screenStyles = StyleSheet.create({
     backgroundColor: colors.pearl,
     alignItems: "center",
     justifyContent: "center"
+  },
+  providerLinkDisabled: {
+    opacity: 0.58
   },
   providerText: {
     color: colors.ink,

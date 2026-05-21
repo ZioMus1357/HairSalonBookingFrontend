@@ -8,6 +8,7 @@ import { useToast } from "../context/ToastContext";
 import { useRouter } from "../router/RouterContext";
 import { colors, radii, shadow } from "../theme/tokens";
 import { UserRole } from "../types/domain";
+import { roleLabel } from "../utils/format";
 
 type NavItem = {
   label: string;
@@ -42,13 +43,6 @@ const dashboardNav: NavItem[] = [
   { label: "Opinie", path: "/admin/reviews", icon: <Bell size={17} color={colors.gold} />, roles: ["Admin"] },
   { label: "Galeria admin", path: "/admin/gallery", icon: <ImageIcon size={17} color={colors.gold} />, roles: ["Admin"] }
 ];
-
-const roleLabels: Record<UserRole | "Guest", string> = {
-  Customer: "Klient",
-  Hairdresser: "Fryzjer",
-  Admin: "Admin",
-  Guest: "Gość"
-};
 
 const roleHomePath = (role: UserRole | "Guest") => {
   if (role === "Admin") return "/admin";
@@ -142,7 +136,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   {toasts.length ? <View style={styles.dot} /> : null}
                 </Pressable>
                 <Pressable onPress={() => navigate(inDashboard ? "/" : roleHomePath(auth.role))}><Text style={styles.linkStrong}>{inDashboard ? "Strona" : "Panel"}</Text></Pressable>
-                <Chip label={roleLabels[auth.role]} active />
+                <Chip label={roleLabel(auth.role)} active />
                 <Pressable onPress={auth.logout}><Text style={styles.link}>Wyloguj</Text></Pressable>
               </>
             ) : (

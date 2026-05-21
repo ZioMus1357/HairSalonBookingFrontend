@@ -1,6 +1,7 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Platform } from "react-native";
 import { AUTH_BASE_URL, authApi } from "../api";
+import { clearMobileEasyAuthToken, setMobileEasyAuthToken } from "../api/mobileAuthSession";
 import { AppUser, AuthMe, UserRole } from "../types/domain";
 
 type PreviewUser = {
@@ -22,6 +23,7 @@ type AuthState = {
   refresh: () => Promise<AuthMe | null>;
   register: (displayName: string, email: string) => Promise<void>;
   login: (provider?: "google" | "github" | "aad") => void;
+  loginWithGoogleIdToken: (idToken: string) => Promise<AuthMe | null>;
   loginWithCredentials: (email: string, password: string) => Promise<AppUser | PreviewUser>;
   logout: () => void;
   previewAs: (role: UserRole) => void;
@@ -111,6 +113,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const loginWithGoogleIdToken = useCallback(
+    async (idToken: string) => {
+      const mobileToken = await authApi.googleMobileLogin(idToken);
+      await setMobileEasyAuthToken(mobileToken);
+      return refresh();
+    },
+    [refresh]
+  );
+
   const loginWithCredentials = useCallback(
     async (email: string, password: string) => {
       if (!email.trim() || !password.trim()) {
@@ -142,7 +153,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.sessionStorage.setItem("maisonNoirLogoutPending", "1");
       const redirect = encodeURIComponent(frontendUrl("/auth/callback"));
       window.location.href = `${AUTH_BASE_URL}/.auth/logout?post_logout_redirect_uri=${redirect}`;
+      return;
     }
+
+    clearMobileEasyAuthToken().catch(() => undefined);
   }, []);
 
   const value = useMemo<AuthState>(() => {
@@ -157,11 +171,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refresh,
       register,
       login,
+      loginWithGoogleIdToken,
       loginWithCredentials,
       logout,
       previewAs: (role) => setPreview(previewUsers[role])
     };
-  }, [error, loading, preview, principal, refresh, register, login, loginWithCredentials, logout]);
+  }, [error, loading, preview, principal, refresh, register, login, loginWithGoogleIdToken, loginWithCredentials, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
