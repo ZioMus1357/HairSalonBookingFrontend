@@ -1,0 +1,37 @@
+# Test E2E-02: Klient loguje się i rezerwuje wizytę
+
+## Cel
+Sprawdzenie pełnego procesu rezerwacji wizyty przez zalogowanego klienta, od logowania przez Google do pojawienia się wizyty w historii klienta.
+
+## Warunki początkowe
+- Aplikacja frontendowa jest uruchomiona.
+- Backend działa w chmurze.
+- Użytkownik posiada już istniejące konto klienta.
+- Profil klienta jest już uzupełniony.
+- W systemie istnieje co najmniej jedna aktywna usługa i jeden aktywny fryzjer.
+- Dostępny jest co najmniej jeden wolny termin wizyty.
+
+## Kroki
+1. Użytkownik klika `Zaloguj`.
+2. Użytkownik loguje się przez Google.
+3. System rozpoznaje istniejące konto klienta.
+4. Użytkownik przechodzi do widoku `Booking`.
+5. Użytkownik wybiera usługę.
+6. Użytkownik wybiera fryzjera.
+7. Użytkownik wybiera datę wizyty.
+8. Użytkownik wybiera dostępną godzinę.
+9. System wyświetla podsumowanie rezerwacji.
+10. Użytkownik klika `Potwierdź rezerwację`.
+11. System tworzy wizytę.
+12. Użytkownik przechodzi do widoku `Moje wizyty`.
+13. System wyświetla utworzoną wizytę na liście wizyt klienta.
+
+## Oczekiwany rezultat
+- Logowanie przez Google działa poprawnie.
+- Aplikacja rozpoznaje istniejące konto klienta.
+- Klient może przejść przez pełny proces rezerwacji.
+- Rezerwacja zostaje zapisana w backendzie.
+- Nowa wizyta jest widoczna w historii wizyt klienta.
+
+## Wynik
+PASS

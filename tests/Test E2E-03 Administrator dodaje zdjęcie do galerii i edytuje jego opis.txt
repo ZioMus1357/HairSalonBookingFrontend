@@ -1,0 +1,36 @@
+# Test E2E-03: Administrator dodaje zdjęcie do galerii i edytuje jego opis
+
+## Cel
+Sprawdzenie działania panelu administracyjnego w zakresie zarządzania galerią salonu, w tym dodawania zdjęcia oraz edycji jego opisu.
+
+## Warunki początkowe
+- Aplikacja frontendowa jest uruchomiona.
+- Backend działa w chmurze.
+- Użytkownik jest zalogowany jako administrator.
+- Administrator ma dostęp do panelu administracyjnego.
+- Przygotowany jest plik graficzny do przesłania.
+
+## Kroki
+1. Administrator loguje się do aplikacji.
+2. Administrator przechodzi do panelu `Admin`.
+3. Administrator otwiera sekcję `Galeria admin`.
+4. Administrator wybiera plik zdjęcia z urządzenia.
+5. Administrator dodaje zdjęcie do galerii.
+6. System przesyła zdjęcie do backendu.
+7. System wyświetla nowe zdjęcie na liście zdjęć galerii.
+8. Administrator wybiera dodane zdjęcie do edycji.
+9. Administrator zmienia opis zdjęcia.
+10. Administrator zapisuje zmieniony opis.
+11. System aktualizuje dane zdjęcia.
+12. Administrator przechodzi do publicznego widoku `Galeria`.
+13. System wyświetla zdjęcie z aktualnym opisem.
+
+## Oczekiwany rezultat
+- Administrator ma dostęp do zarządzania galerią.
+- Zdjęcie zostaje poprawnie przesłane przez frontend do backendu.
+- Dodane zdjęcie pojawia się w galerii.
+- Opis zdjęcia można edytować.
+- Zmieniony opis jest widoczny po zapisaniu.
+
+## Wynik
+PASS

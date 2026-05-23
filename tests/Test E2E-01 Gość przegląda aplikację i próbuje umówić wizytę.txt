@@ -1,0 +1,28 @@
+# Test E2E-01: Gość przegląda aplikację i próbuje umówić wizytę
+
+## Cel
+Sprawdzenie działania publicznej części aplikacji z perspektywy niezalogowanego użytkownika oraz weryfikacja, czy system poprawnie blokuje możliwość rezerwacji wizyty bez logowania.
+
+## Warunki początkowe
+- Aplikacja frontendowa jest uruchomiona.
+- Backend działa w chmurze.
+- Użytkownik nie jest zalogowany.
+- W systemie istnieją aktywne usługi oraz aktywni fryzjerzy.
+
+## Kroki
+1. Użytkownik wchodzi na stronę główną aplikacji.
+2. Użytkownik przechodzi do widoku `Usługi`.
+3. System wyświetla listę usług pobraną z backendu.
+4. Użytkownik przechodzi do widoku `Fryzjerzy`.
+5. System wyświetla listę fryzjerów pobraną z backendu.
+6. Użytkownik klika przycisk `Umów` przy wybranym fryzjerze.
+7. System przekierowuje użytkownika do logowania lub informuje, że rezerwacja wymaga zalogowania.
+
+## Oczekiwany rezultat
+- Publiczne widoki aplikacji są dostępne bez logowania.
+- Dane usług i fryzjerów są pobierane z backendu.
+- Niezalogowany użytkownik nie może utworzyć rezerwacji.
+- Po próbie rezerwacji użytkownik zostaje skierowany do procesu logowania.
+
+## Wynik
+PASS

@@ -1,10 +1,10 @@
 import * as DocumentPicker from "expo-document-picker";
-import * as Google from "expo-auth-session/providers/google";
 import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Clock3, Edit3, Image as ImageIcon, Plus, RefreshCcw, Scissors, Trash2, Upload, UserRound, UsersRound } from "lucide-react-native";
 import { createElement, useEffect, useMemo, useState } from "react";
 import { Alert, Image, ImageBackground, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { adminApi, appointmentsApi, authApi, AUTH_BASE_URL, customersApi, galleryApi, hairdressersApi, notificationsApi, reviewsApi, servicesApi } from "../api";
+import { nativeGoogleIdToken } from "../api/nativeGoogleSignIn";
 import { Button, Card, Chip, DataTable, Field, PageHeader, SelectRail, StateView } from "../components/Primitives";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -302,17 +302,11 @@ export function LoginPage() {
 
 function NativeGoogleLogin() {
   const { showToast } = useToast();
-  const clientId = Platform.select({
-    ios: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-    android: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-    default: undefined
-  });
 
-  if (!clientId) {
-    const variableName = Platform.OS === "ios" ? "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID" : "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID";
+  if (Platform.OS !== "android") {
     return (
       <Pressable
-        onPress={() => showToast({ title: "Google mobile nie jest skonfigurowane", message: `Ustaw ${variableName} i uruchom Expo ponownie.`, tone: "error" })}
+        onPress={() => showToast({ title: "Logowanie mobilne", message: "Natywne logowanie Google jest obecnie skonfigurowane dla Androida.", tone: "info" })}
         style={screenStyles.providerLink}
       >
         <Text style={screenStyles.providerText}>Google</Text>
@@ -320,80 +314,53 @@ function NativeGoogleLogin() {
     );
   }
 
-  return <ConfiguredNativeGoogleLogin clientId={clientId} />;
+  return <NativeAndroidGoogleLogin />;
 }
 
-function ConfiguredNativeGoogleLogin({ clientId }: { clientId: string }) {
+function NativeAndroidGoogleLogin() {
   const { loginWithGoogleIdToken, register } = useAuth();
   const { navigate } = useRouter();
   const { showToast } = useToast();
   const [busy, setBusy] = useState(false);
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest(
-    {
-      iosClientId: clientId,
-      androidClientId: clientId,
-      selectAccount: true
-    },
-    {
-      scheme: "maisonnoir",
-      path: "auth/callback"
-    }
-  );
+  const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 
-  useEffect(() => {
-    if (response?.type !== "success") {
-      if (response?.type === "error") {
-        setBusy(false);
-        showToast({ title: "Logowanie Google nieudane", message: response.error?.message ?? "Google nie zwrócił sesji logowania.", tone: "error" });
-      }
-      return;
+  const finishGoogleLogin = async () => {
+    if (!webClientId) {
+      throw new Error("Ustaw EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID i uruchom Expo ponownie.");
     }
 
-    const idToken = response.params.id_token;
+    const idToken = await nativeGoogleIdToken(webClientId);
     if (!idToken) {
-      setBusy(false);
-      showToast({ title: "Logowanie Google nieudane", message: "Google nie zwrócił tokenu tożsamości.", tone: "error" });
+      throw new Error("Logowanie Google zostało anulowane.");
+    }
+
+    const principal = await loginWithGoogleIdToken(idToken);
+    if (!principal) {
+      throw new Error("Azure Easy Auth nie zwrócił profilu po zalogowaniu.");
+    }
+
+    const role = principal.user?.role;
+    if (!principal.user) {
+      await register(principal.name, principal.email);
+      showToast({ title: "Profil utworzony", message: "Konto klienta zostało połączone z logowaniem Google.", tone: "success" });
+      navigate("/profile?onboarding=1");
       return;
     }
 
-    loginWithGoogleIdToken(idToken)
-      .then(async (principal) => {
-        if (!principal) {
-          throw new Error("Azure Easy Auth nie zwrócił profilu po zalogowaniu.");
-        }
-
-        let role = principal.user?.role;
-        if (!principal.user) {
-          await register(principal.name, principal.email);
-          showToast({ title: "Profil utworzony", message: "Konto klienta zostało połączone z logowaniem Google.", tone: "success" });
-          navigate("/profile?onboarding=1");
-          return;
-        }
-
-        showToast({ title: "Zalogowano", message: `Rola: ${roleLabel(role)}`, tone: "success" });
-        navigate(role === "Admin" ? "/admin" : role === "Hairdresser" ? "/hairdresser/dashboard" : "/booking");
-      })
-      .catch((err) => showToast({ title: "Logowanie Google nieudane", message: getErrorMessage(err), tone: "error" }))
-      .finally(() => setBusy(false));
-  }, [loginWithGoogleIdToken, navigate, register, response, showToast]);
+    showToast({ title: "Zalogowano", message: `Rola: ${roleLabel(role)}`, tone: "success" });
+    navigate(role === "Admin" ? "/admin" : role === "Hairdresser" ? "/hairdresser/dashboard" : "/booking");
+  };
 
   return (
     <Pressable
-      disabled={!request || busy}
+      disabled={busy}
       onPress={() => {
         setBusy(true);
-        promptAsync()
-          .then((result) => {
-            if (result.type !== "success") {
-              setBusy(false);
-            }
-          })
-          .catch((err) => {
-            setBusy(false);
-            showToast({ title: "Logowanie Google nieudane", message: getErrorMessage(err), tone: "error" });
-          });
+        finishGoogleLogin()
+          .catch((err) => showToast({ title: "Logowanie Google nieudane", message: getErrorMessage(err), tone: "error" }))
+          .finally(() => setBusy(false));
       }}
-      style={[screenStyles.providerLink, (!request || busy) && screenStyles.providerLinkDisabled]}
+      style={[screenStyles.providerLink, busy && screenStyles.providerLinkDisabled]}
     >
       <Text style={screenStyles.providerText}>{busy ? "Logowanie..." : "Google"}</Text>
     </Pressable>

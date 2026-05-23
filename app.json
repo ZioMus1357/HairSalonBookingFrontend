@@ -7,14 +7,22 @@
     "scheme": "maisonnoir",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "android": {
+      "package": "com.maisonnoir.booking"
+    },
     "web": {
       "bundler": "metro",
       "output": "single"
     },
     "plugins": [
       "expo-document-picker",
-      "expo-web-browser",
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "29b3cdbd-f2aa-4fe0-b3f7-5a5b5f7720ae"
+      }
+    },
+    "owner": "dawidg1357"
   }
 }
