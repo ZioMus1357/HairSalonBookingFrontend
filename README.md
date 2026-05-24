@@ -630,6 +630,31 @@ Nagranie:
 
 `tests/E2E-03-admin-galeria-cropped.mp4`
 
+### Automatyczne testy Playwright
+
+Oprócz nagrań manualnych dodano dwa automatyczne testy E2E w Playwright.
+
+Plik testów:
+
+`tests/e2e/public.spec.ts`
+
+Zakres testów:
+
+1. Gość przechodzi do publicznego widoku usług i widzi elementy filtrowania oraz sortowania.
+2. Gość próbuje rozpocząć rezerwację, trafia na ekran braku uprawnień, a następnie przechodzi do logowania.
+
+Uruchomienie testów:
+
+```bash
+npm run test:e2e
+```
+
+Pierwsze uruchomienie Playwrighta może wymagać pobrania przeglądarki:
+
+```bash
+npx playwright install chromium
+```
+
 ## 17. Uruchamianie projektu
 
 ### 17.1. Instalacja zależności
