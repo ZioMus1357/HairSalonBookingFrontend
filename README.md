@@ -632,21 +632,117 @@ Nagranie:
 
 ### Automatyczne testy Playwright
 
-Oprócz nagrań manualnych dodano dwa automatyczne testy E2E w Playwright.
+Oprócz nagrań manualnych przygotowano automatyczne testy E2E w Playwright. Testy są podzielone na scenariusze publiczne oraz scenariusze dla konkretnych ról użytkowników. Testy rolowe korzystają z zapisanych sesji OAuth/Easy Auth, ponieważ logowanie przez Google/GitHub nie powinno być automatyzowane przez wpisywanie danych w formularzach dostawcy.
 
-Plik testów:
+Pliki konfiguracyjne:
 
-`tests/e2e/public.spec.ts`
+- `playwright.config.ts` - lokalne testy webowe uruchamiane z lokalnym serwerem Expo,
+- `playwright.hosted.config.ts` - testy publiczne na aplikacji hostowanej na GitHub Pages,
+- `playwright.auth.config.ts` - testy wymagające zapisanej sesji użytkownika.
 
-Zakres testów:
+Pliki testów:
 
-1. Gość przechodzi do publicznego widoku usług i widzi elementy filtrowania oraz sortowania.
-2. Gość próbuje rozpocząć rezerwację, trafia na ekran braku uprawnień, a następnie przechodzi do logowania.
+- `tests/e2e/public.spec.ts` - podstawowe lokalne testy publicznej części aplikacji,
+- `tests/e2e/hosted-public.spec.ts` - test publicznych widoków hostowanej aplikacji,
+- `tests/e2e/auth.setup.ts` - ręczny zapis sesji klienta do `playwright/.auth/user.json`,
+- `tests/e2e/auth-admin.setup.ts` - ręczny zapis sesji admina do `playwright/.auth/admin.json`,
+- `tests/e2e/auth-hairdresser.setup.ts` - ręczny zapis sesji fryzjera do `playwright/.auth/hairdresser.json`,
+- `tests/e2e/authenticated.spec.ts` - test utrzymania zalogowanej sesji i `/api/Auth/me`,
+- `tests/e2e/customer.spec.ts` - testy funkcjonalności klienta,
+- `tests/e2e/admin.spec.ts` - testy funkcjonalności administratora,
+- `tests/e2e/hairdresser.spec.ts` - testy funkcjonalności fryzjera.
 
-Uruchomienie testów:
+Zakres testów publicznych:
+
+1. Gość przechodzi przez publiczne widoki aplikacji: strona główna, usługi, fryzjerzy, galeria, opinie i kontakt.
+2. Gość próbuje rozpocząć rezerwację i trafia na ekran wymagający logowania.
+
+Zakres testów klienta:
+
+1. Klient ma dostęp do swojego profilu.
+2. Klient widzi historię swoich wizyt.
+3. Klient może wejść do procesu rezerwacji.
+4. Sesja klienta pozwala pobrać `/api/Customers/me`.
+5. Klient może utworzyć realną rezerwację na dostępny termin w chmurze.
+
+Zakres testów administratora:
+
+1. Admin ma dostęp do dashboardu i statystyk.
+2. Admin widzi zarządzanie użytkownikami i rolami.
+3. Admin widzi ekrany klientów, fryzjerów i usług.
+4. Admin widzi wizyty, galerię i moderację opinii.
+5. Sesja admina pozwala pobrać `/api/Auth/me` z rolą `Admin`.
+6. Admin może utworzyć, edytować i usunąć testową usługę.
+7. Admin może utworzyć, edytować i usunąć testowy profil fryzjera.
+8. Admin może pobrać użytkowników z rolami i powiązaniami.
+9. Admin może ukryć i przywrócić opinię bez utraty pierwotnego stanu, jeśli w chmurze istnieje opinia do moderacji.
+
+Zakres testów fryzjera:
+
+1. Fryzjer ma dostęp do panelu i metryk pracy.
+2. Fryzjer widzi listę wizyt z filtrami.
+3. Fryzjer widzi historię klientów.
+4. Fryzjer widzi swój profil jako podgląd.
+5. Sesja fryzjera pozwala pobrać `/api/Auth/me` z rolą `Hairdresser`.
+6. Fryzjer może pobrać swoje wizyty z chmury.
+7. Fryzjer może zapisać status wizyty bez zmiany jej stanu.
+8. Fryzjer może pobrać historię klienta powiązanego z jego wizytą.
+9. Fryzjer może sprawdzić dostępność swojego profilu.
+
+Uruchomienie testów lokalnych:
 
 ```bash
 npm run test:e2e
+```
+
+Uruchomienie testu publicznej aplikacji hostowanej:
+
+```bash
+npm run test:e2e:hosted
+```
+
+Zapis sesji klienta:
+
+```bash
+npm run test:e2e:auth:setup
+```
+
+Zapis sesji admina:
+
+```bash
+npm run test:e2e:admin:setup
+```
+
+Zapis sesji fryzjera:
+
+```bash
+npm run test:e2e:hairdresser:setup
+```
+
+Po uruchomieniu setupu należy ręcznie zalogować się w otwartym oknie Playwright, poczekać na powrót do aplikacji, a następnie kliknąć `Resume` w Playwright Inspector. Zapisane sesje znajdują się w katalogu `playwright/.auth/`, który jest ignorowany przez Git.
+
+Uruchomienie testów sesji:
+
+```bash
+npm run test:e2e:auth
+```
+
+Uruchomienie testów klienta:
+
+```bash
+npm run test:e2e:customer
+```
+
+Uruchomienie testów admina:
+
+```bash
+npm run test:e2e:admin
+```
+
+Uruchomienie testów fryzjera:
+
+```bash
+npm run test:e2e:hairdresser
 ```
 
 Pierwsze uruchomienie Playwrighta może wymagać pobrania przeglądarki:

@@ -13,6 +13,14 @@
     "build": "expo export --platform web --output-dir dist && node scripts/prepare-pages.js",
     "export:web": "expo export --platform web --output-dir dist",
     "test:e2e": "playwright test",
+    "test:e2e:hosted": "playwright test --config=playwright.hosted.config.ts",
+    "test:e2e:auth:setup": "playwright test tests/e2e/auth.setup.ts --config=playwright.auth.config.ts --headed",
+    "test:e2e:admin:setup": "playwright test tests/e2e/auth-admin.setup.ts --config=playwright.auth.config.ts --headed",
+    "test:e2e:hairdresser:setup": "playwright test tests/e2e/auth-hairdresser.setup.ts --config=playwright.auth.config.ts --headed",
+    "test:e2e:auth": "playwright test tests/e2e/authenticated.spec.ts --config=playwright.auth.config.ts",
+    "test:e2e:customer": "playwright test tests/e2e/customer.spec.ts --config=playwright.auth.config.ts",
+    "test:e2e:admin": "playwright test tests/e2e/admin.spec.ts --config=playwright.auth.config.ts",
+    "test:e2e:hairdresser": "playwright test tests/e2e/hairdresser.spec.ts --config=playwright.auth.config.ts",
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
