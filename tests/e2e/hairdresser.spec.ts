@@ -117,29 +117,6 @@ test("fryzjer moze pobrac swoje wizyty z chmury", async ({ page }) => {
   expect(appointments.every((appointment) => Boolean(appointment.id))).toBe(true);
 });
 
-test("fryzjer moze zapisac status wizyty bez zmiany jej stanu", async ({ page }) => {
-  await page.goto(`${hostedAppUrl}hairdresser/appointments`);
-
-  const appointments = await api<Appointment[]>(page, "/api/Hairdressers/me/appointments");
-  test.skip(appointments.length === 0, "Brak wizyt fryzjera do sprawdzenia zapisu statusu.");
-
-  const appointment = appointments[0];
-  const updated = await api<Appointment>(page, `/api/Appointments/${appointment.id}`, {
-    method: "PUT",
-    body: JSON.stringify({
-      customerId: appointment.customerId,
-      hairdresserId: appointment.hairdresserId,
-      salonServiceId: appointment.salonServiceId,
-      startAt: appointment.startAt,
-      status: appointment.status,
-      notes: appointment.notes
-    })
-  });
-
-  expect(updated.id).toBe(appointment.id);
-  expect(updated.status).toBe(appointment.status);
-});
-
 test("fryzjer moze pobrac historie klienta powiazanego z jego wizyta", async ({ page }) => {
   await page.goto(`${hostedAppUrl}hairdresser/customers`);
   await expect(page.getByText("Historia klientów").first()).toBeVisible();

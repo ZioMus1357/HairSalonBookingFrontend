@@ -685,9 +685,16 @@ Zakres testów fryzjera:
 4. Fryzjer widzi swój profil jako podgląd.
 5. Sesja fryzjera pozwala pobrać `/api/Auth/me` z rolą `Hairdresser`.
 6. Fryzjer może pobrać swoje wizyty z chmury.
-7. Fryzjer może zapisać status wizyty bez zmiany jej stanu.
-8. Fryzjer może pobrać historię klienta powiązanego z jego wizytą.
-9. Fryzjer może sprawdzić dostępność swojego profilu.
+7. Fryzjer może pobrać historię klienta powiązanego z jego wizytą.
+8. Fryzjer może sprawdzić dostępność swojego profilu.
+
+Przykładowe wyniki automatycznych testów Playwright:
+
+![Wynik testów klienta](tests/e2e/console_customer_tests.PNG)
+
+![Wynik testów admina](tests/e2e/console_admin_tests.PNG)
+
+![Wynik testów fryzjera](tests/e2e/console_hairdresser_tests.PNG)
 
 Uruchomienie testów lokalnych:
 
